@@ -228,8 +228,6 @@ function shuffle(arr) {
   }
   return a;
 }
-  return a;
-}
 
 // ── RENDER: SELECT SCREEN ──────────────────────────────────────────────────
 function renderSelectScreen() {
