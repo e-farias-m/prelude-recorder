@@ -214,12 +214,20 @@ function showToast(msg) {
   showToast._timer = setTimeout(() => t.classList.remove('show'), 1800);
 }
 
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
 function shuffle(arr) {
-  const a = arr.slice();
+  const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
+  return a;
+}
   return a;
 }
 
