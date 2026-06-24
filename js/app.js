@@ -23,51 +23,26 @@ const VERSION = '1.0.0';
 const STORAGE_KEY = 'preludeRecorderProgress';
 const NAME_KEY = 'preludeRecorderName';
 
-// ── ANALYTICS ───────────────────────────────────────────────────────────────
-const ANALYTICS = {
-  sessionId: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-  startTime: Date.now(),
-  events: [],
-  totalXpGained: 0,
-  pingTimer: null,
-};
+// ── ANALYTICS (local) ─────────────────────────────────────────────────────────
+const ANALYTICS_KEY = 'preludeRecorderAnalytics';
 
 function getStudentName() { return localStorage.getItem(NAME_KEY) || ''; }
 function setStudentName(name) { localStorage.setItem(NAME_KEY, name); }
 
 function recordLessonComplete(lessonId, type, xpGained, stars) {
-  ANALYTICS.events.push({
+  const events = getAnalyticsEvents();
+  events.push({
     lessonId, type, xpGained, stars,
     timestamp: Date.now(),
     instrumentId: APP.instrumentId,
+    studentName: getStudentName(),
   });
-  ANALYTICS.totalXpGained += xpGained;
-  scheduleAnalyticsPing();
+  localStorage.setItem(ANALYTICS_KEY, JSON.stringify(events));
 }
 
-function scheduleAnalyticsPing() {
-  clearTimeout(ANALYTICS.pingTimer);
-  ANALYTICS.pingTimer = setTimeout(sendAnalytics, 30000);
-}
-
-function sendAnalytics() {
-  const name = getStudentName();
-  if (!name) return;
-  const payload = {
-    studentName: name,
-    sessionId: ANALYTICS.sessionId,
-    startTime: ANALYTICS.startTime,
-    timeSpent: Math.round((Date.now() - ANALYTICS.startTime) / 1000),
-    totalXpGained: ANALYTICS.totalXpGained,
-    events: ANALYTICS.events,
-    instrumentId: APP.instrumentId,
-    userAgent: navigator.userAgent,
-  };
-  fetch('/api/analytics', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).catch(() => {});
+function getAnalyticsEvents() {
+  try { return JSON.parse(localStorage.getItem(ANALYTICS_KEY)) || []; }
+  catch { return []; }
 }
 
 function showNamePrompt() {
@@ -93,28 +68,11 @@ function showNamePrompt() {
     setStudentName(name);
     overlay.classList.add('fade-out');
     setTimeout(() => overlay.remove(), 300);
-    ANALYTICS.startTime = Date.now();
   }
 
   submit.addEventListener('click', submitName);
   input.addEventListener('keydown', e => { if (e.key === 'Enter') submitName(); });
 }
-
-window.addEventListener('beforeunload', () => {
-  const name = getStudentName();
-  if (!name) return;
-  const payload = JSON.stringify({
-    studentName: name,
-    sessionId: ANALYTICS.sessionId,
-    startTime: ANALYTICS.startTime,
-    timeSpent: Math.round((Date.now() - ANALYTICS.startTime) / 1000),
-    totalXpGained: ANALYTICS.totalXpGained,
-    events: ANALYTICS.events,
-    instrumentId: APP.instrumentId,
-    userAgent: navigator.userAgent,
-  });
-  try { navigator.sendBeacon('/api/analytics', new Blob([payload], { type: 'application/json' })); } catch (e) {}
-});
 
 // ── STREAK TRACKING ───────────────────────────────────────────────────────
 const STREAK_KEY = 'preludeRecorderStreak';
@@ -302,7 +260,7 @@ function renderSelectScreen() {
       <div class="streak-bar">${streakText} ${settingsIcon}</div>
       <div class="select-student-name">${escapeHtml(studentName)}</div>
       <div class="instrument-grid">${cards}</div>
-      <div class="version-badge">v${VERSION}</div>
+      <div class="version-badge" data-action="show-analytics" style="cursor:pointer">v${VERSION}</div>
     </div>`;
 }
 
@@ -327,6 +285,63 @@ function renderSettingsScreen() {
           <label class="settings-label">Reset progress</label>
           <p class="settings-desc">Clear all lesson progress and XP for all instruments. This cannot be undone.</p>
           <button class="btn btn-danger" data-action="reset-progress">Reset all progress</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── RENDER: ANALYTICS SCREEN ────────────────────────────────────────────────
+function renderAnalyticsScreen() {
+  const events = getAnalyticsEvents();
+  const totalXp = events.reduce((s, e) => s + (e.xpGained || 0), 0);
+  const lessonCount = events.length;
+  const streak = getStreak();
+
+  const byInstrument = {};
+  events.forEach(e => {
+    const inst = e.instrumentId || 'unknown';
+    if (!byInstrument[inst]) byInstrument[inst] = { lessons: 0, xp: 0 };
+    byInstrument[inst].lessons++;
+    byInstrument[inst].xp += e.xpGained || 0;
+  });
+
+  const instrumentRows = Object.entries(byInstrument).map(([id, data]) => {
+    const name = CURRICULUM[id]?.shortName || id;
+    return `<div class="stat-row"><span class="stat-label">${escapeHtml(name)}</span><span class="stat-value">${data.lessons} lessons · ${data.xp} XP</span></div>`;
+  }).join('');
+
+  const recentEvents = events.slice(-20).reverse().map(e => {
+    const date = new Date(e.timestamp);
+    const timeStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const typeLabel = { lesson: 'Lesson', review: 'Review', song: 'Song' }[e.type] || e.type;
+    const inst = CURRICULUM[e.instrumentId]?.shortName || e.instrumentId || '';
+    return `<div class="event-row"><span class="event-type">${typeLabel}</span><span class="event-lesson">${e.lessonId || ''}</span><span class="event-xp">+${e.xpGained || 0} XP</span><span class="event-date">${timeStr}</span></div>`;
+  }).join('') || '<div class="stat-row" style="color:var(--text-muted)">No activity yet — complete a lesson!</div>';
+
+  const starCount = events.filter(e => e.stars === 3).length;
+  const pct = lessonCount ? Math.round((starCount / lessonCount) * 100) : 0;
+
+  return `
+    <div class="screen active analytics-screen">
+      <div class="analytics-header">
+        <button class="header-back" data-action="close-analytics">←</button>
+        <h2>Your Stats</h2>
+      </div>
+      <div class="analytics-body">
+        <div class="analytics-cards">
+          <div class="analytics-card"><span class="card-stat">${totalXp}</span><span class="card-label">Total XP</span></div>
+          <div class="analytics-card"><span class="card-stat">${lessonCount}</span><span class="card-label">Lessons done</span></div>
+          <div class="analytics-card"><span class="card-stat">${streak.count}</span><span class="card-label">Day streak</span></div>
+          <div class="analytics-card"><span class="card-stat">${pct}%</span><span class="card-label">3-star rate</span></div>
+        </div>
+        <div class="analytics-section">
+          <div class="analytics-section-title">Per instrument</div>
+          <div class="stats-list">${instrumentRows}</div>
+        </div>
+        <div class="analytics-section">
+          <div class="analytics-section-title">Recent activity</div>
+          <div class="events-list">${recentEvents}</div>
+          <button class="btn btn-danger" data-action="clear-analytics" style="margin-top:16px">Clear analytics data</button>
         </div>
       </div>
     </div>`;
@@ -891,6 +906,7 @@ function render() {
   else if (APP.screen === 'map') app.innerHTML = renderMapScreen();
   else if (APP.screen === 'lesson') app.innerHTML = renderLessonScreen();
   else if (APP.screen === 'settings') app.innerHTML = renderSettingsScreen();
+  else if (APP.screen === 'analytics') app.innerHTML = renderAnalyticsScreen();
   else if (APP.screen === 'game') app.innerHTML = renderGameScreen();
   if (APP.showReference) {
     const refHtml = renderReferenceOverlay();
@@ -1195,6 +1211,25 @@ function handleAction(action, el) {
       break;
 
     case 'close-settings':
+      APP.screen = 'select';
+      render();
+      break;
+
+    // ── Analytics ──────────────────────────────────────────────────────
+    case 'show-analytics':
+      APP.screen = 'analytics';
+      render();
+      break;
+
+    case 'close-analytics':
+      APP.screen = 'select';
+      render();
+      break;
+
+    case 'clear-analytics':
+      if (!confirm('Clear all analytics data?')) return;
+      localStorage.removeItem(ANALYTICS_KEY);
+      showToast('Analytics cleared.');
       APP.screen = 'select';
       render();
       break;
