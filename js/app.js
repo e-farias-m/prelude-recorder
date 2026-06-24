@@ -361,8 +361,8 @@ function renderReferenceOverlay() {
   const fingeringSvg = Graphics.fingeringSVG(inst.fingeringType, lesson.fingeringState, inst.accentColor, 120);
   const staffSvg = Graphics.staffSVG({ pos: lesson.staffStep, accidental: lesson.accidental, clef: inst.clef, accentColor: inst.accentColor, width: 120 });
   return `
-    <div class="screen active reference-overlay" data-action="close-reference" style="cursor:pointer">
-      <div class="reference-content" style="cursor:default" onclick="event.stopPropagation()">
+    <div class="screen active reference-overlay" id="reference-overlay">
+      <div class="reference-content">
         <div class="reference-header">
           <span class="reference-note-name">${lesson.noteName}<span class="note-octave-sup">${lesson.octave}</span></span>
           <button class="btn-icon" data-action="close-reference" style="background:none;border:none;cursor:pointer;font-size:24px;">✕</button>
@@ -425,8 +425,9 @@ function renderMapScreen() {
     const connector = i === 0 ? '' : `<div class="map-connector ${prog.completed[inst.lessons[i-1].id] ? 'done' : ''}"></div>`;
     const action = unlocked ? `data-action="open-lesson" data-index="${i}"` : `data-action="locked-node"`;
 
+    const refIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
     const refBtn = unlocked && !isReview && !isSongLesson(lesson)
-      ? `<button class="map-ref-btn" data-action="open-reference" data-index="${i}" title="View reference">👁</button>`
+      ? `<button class="map-ref-btn" data-action="open-reference" data-index="${i}" title="View reference">${refIcon}</button>`
       : '';
 
     return `
@@ -917,6 +918,13 @@ function render() {
   if (APP.showReference) {
     const refHtml = renderReferenceOverlay();
     if (refHtml) app.insertAdjacentHTML('beforeend', refHtml);
+    const overlay = document.getElementById('reference-overlay');
+    if (overlay) overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        APP.showReference = false;
+        render();
+      }
+    });
   }
 }
 
