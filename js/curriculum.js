@@ -78,8 +78,8 @@ const CURRICULUM = {
         description: 'The tune behind "Mary Had a Little Lamb" using B, A, and G.',
         prompt: 'Listen for the repeating three-note pattern!',
         keySig: 1, timeSig: { num: 4, den: 4 },
-        noteIds: ['sr-1', 'sr-2', 'sr-3', 'sr-2', 'sr-1', 'sr-1', 'sr-1', 'sr-2', 'sr-2', 'sr-2', 'sr-1', 'sr-1', 'sr-1', 'sr-1', 'sr-2', 'sr-3', 'sr-2', 'sr-1', 'sr-1', 'sr-1', 'sr-2', 'sr-2', 'sr-1', 'sr-2', 'sr-3'],
-        durations: ['q', 'q', 'q', 'q', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'w'],
+        noteIds: ['sr-1', 'sr-2', 'sr-3', 'sr-2', 'sr-1', 'sr-1', 'sr-1', 'sr-2', 'sr-2', 'sr-2', 'sr-1', 'sr-1', 'sr-1', 'sr-1', 'sr-2', 'sr-3', 'sr-2', 'sr-1', 'sr-1', 'sr-1', 'sr-1', 'sr-2', 'sr-2', 'sr-1', 'sr-2', 'sr-3'],
+        durations: ['q', 'q', 'q', 'q', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'w'],
       },
       {
         id: 'sr-4',
@@ -307,8 +307,8 @@ const CURRICULUM = {
         description: 'The tune behind "Mary Had a Little Lamb" using E through A.',
         prompt: 'Your first full phrase on the alto! Listen for the repeating pattern.',
         keySig: 1, timeSig: { num: 4, den: 4 },
-        noteIds: ['ar-1', 'ar-2', 'ar-3', 'ar-2', 'ar-1', 'ar-1', 'ar-1', 'ar-2', 'ar-2', 'ar-2', 'ar-1', 'ar-1', 'ar-1', 'ar-1', 'ar-2', 'ar-3', 'ar-2', 'ar-1', 'ar-1', 'ar-1', 'ar-2', 'ar-2', 'ar-1', 'ar-2', 'ar-3'],
-        durations: ['q', 'q', 'q', 'q', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'w'],
+        noteIds: ['ar-1', 'ar-2', 'ar-3', 'ar-2', 'ar-1', 'ar-1', 'ar-1', 'ar-2', 'ar-2', 'ar-2', 'ar-1', 'ar-1', 'ar-1', 'ar-1', 'ar-2', 'ar-3', 'ar-2', 'ar-1', 'ar-1', 'ar-1', 'ar-1', 'ar-2', 'ar-2', 'ar-1', 'ar-2', 'ar-3'],
+        durations: ['q', 'q', 'q', 'q', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'w'],
       },
       {
         id: 'ar-6', noteName: 'G', octave: 3, staffStep: -12, accidental: null, freq: 196.00,
@@ -472,8 +472,8 @@ const CURRICULUM = {
         description: 'The tune behind "Mary Had a Little Lamb" using B through D.',
         prompt: 'This song uses your tenor\'s lower register. Listen to the warm, full sound!',
         keySig: 1, timeSig: { num: 4, den: 4 },
-        noteIds: ['tn-1', 'tn-2', 'tn-3', 'tn-2', 'tn-1', 'tn-1', 'tn-1', 'tn-2', 'tn-2', 'tn-2', 'tn-1', 'tn-1', 'tn-1', 'tn-1', 'tn-2', 'tn-3', 'tn-2', 'tn-1', 'tn-1', 'tn-1', 'tn-2', 'tn-2', 'tn-1', 'tn-2', 'tn-3'],
-        durations: ['q', 'q', 'q', 'q', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'w'],
+        noteIds: ['tn-1', 'tn-2', 'tn-3', 'tn-2', 'tn-1', 'tn-1', 'tn-1', 'tn-2', 'tn-2', 'tn-2', 'tn-1', 'tn-1', 'tn-1', 'tn-1', 'tn-2', 'tn-3', 'tn-2', 'tn-1', 'tn-1', 'tn-1', 'tn-1', 'tn-2', 'tn-2', 'tn-1', 'tn-2', 'tn-3'],
+        durations: ['q', 'q', 'q', 'q', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'w'],
       },
       {
         id: 'tn-review-1', type: 'review',
@@ -631,8 +631,8 @@ const CURRICULUM = {
         description: 'The tune behind "Mary Had a Little Lamb" using E through G.',
         prompt: 'Your first full melody on the bass recorder! Big, warm air throughout.',
         keySig: 1, timeSig: { num: 4, den: 4 },
-        noteIds: ['br-1', 'br-2', 'br-3', 'br-2', 'br-1', 'br-1', 'br-1', 'br-2', 'br-2', 'br-2', 'br-1', 'br-1', 'br-1', 'br-1', 'br-2', 'br-3', 'br-2', 'br-1', 'br-1', 'br-1', 'br-2', 'br-2', 'br-1', 'br-2', 'br-3'],
-        durations: ['q', 'q', 'q', 'q', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'w'],
+        noteIds: ['br-1', 'br-2', 'br-3', 'br-2', 'br-1', 'br-1', 'br-1', 'br-2', 'br-2', 'br-2', 'br-1', 'br-1', 'br-1', 'br-1', 'br-2', 'br-3', 'br-2', 'br-1', 'br-1', 'br-1', 'br-1', 'br-2', 'br-2', 'br-1', 'br-2', 'br-3'],
+        durations: ['q', 'q', 'q', 'q', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'w'],
       },
       {
         id: 'br-review-1', type: 'review',
