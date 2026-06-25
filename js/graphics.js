@@ -525,8 +525,6 @@ const Graphics = (() => {
           const bTipX2 = lastStemUp ? lastX + 6.5 : lastX - 6.5;
           const bTipY2 = lastStemUp ? lastY - 42 : lastY + 42;
           const bw = 8;
-          // Shortest flag on the first note as a visual cue
-          s += `<path d="M${bTipX1} ${bTipY1} Q${bTipX1 + (stemUp ? 10 : -10)} ${bTipY1 + (stemUp ? 4 : -4)} ${bTipX1 + 5} ${bTipY1 + 12}" stroke="${noteColor}" stroke-width="2" fill="none"/>`;
           if (stemUp) {
             s += `<polygon points="${bTipX1},${bTipY1} ${bTipX2},${bTipY2} ${bTipX2},${bTipY2 + bw} ${bTipX1},${bTipY1 + bw}" fill="${noteColor}"/>`;
           } else {
