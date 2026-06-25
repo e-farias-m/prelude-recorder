@@ -284,7 +284,9 @@ const CURRICULUM = {
         prerequisiteIds: ['ar-1', 'ar-2', 'ar-3'],
         description: 'A classic English nursery rhyme using E, D, and C.',
         prompt: 'Step through each note. This melody works on any recorder!',
-        noteIds: ['ar-1', 'ar-2', 'ar-3', 'ar-1', 'ar-2', 'ar-3', 'ar-3', 'ar-3', 'ar-3', 'ar-2', 'ar-2', 'ar-2', 'ar-2', 'ar-1', 'ar-2', 'ar-3'],
+        keySig: 1, timeSig: { num: 4, den: 4 },
+        noteIds: ['ar-1', 'ar-2', 'ar-3', 'ar-1', 'ar-2', 'ar-3', 'ar-3', 'ar-3', 'ar-3', 'ar-3', 'ar-2', 'ar-2', 'ar-2', 'ar-2', 'ar-1', 'ar-2', 'ar-3'],
+        durations: ['q', 'q', 'h', 'q', 'q', 'h', '8', '8', '8', '8', '8', '8', '8', '8', 'q', 'q', 'h'],
       },
       {
         id: 'ar-4', noteName: 'B', octave: 3, staffStep: -10, accidental: null, freq: 246.94,
@@ -304,7 +306,9 @@ const CURRICULUM = {
         prerequisiteIds: ['ar-1', 'ar-2', 'ar-3', 'ar-4', 'ar-5'],
         description: 'The tune behind "Mary Had a Little Lamb" using E through A.',
         prompt: 'Your first full phrase on the alto! Listen for the repeating pattern.',
+        keySig: 1, timeSig: { num: 4, den: 4 },
         noteIds: ['ar-1', 'ar-2', 'ar-3', 'ar-2', 'ar-1', 'ar-1', 'ar-1', 'ar-2', 'ar-2', 'ar-2', 'ar-1', 'ar-1', 'ar-1', 'ar-1', 'ar-2', 'ar-3', 'ar-2', 'ar-1', 'ar-1', 'ar-1', 'ar-2', 'ar-2', 'ar-1', 'ar-2', 'ar-3'],
+        durations: ['q', 'q', 'q', 'q', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'w'],
       },
       {
         id: 'ar-6', noteName: 'G', octave: 3, staffStep: -12, accidental: null, freq: 196.00,
@@ -445,7 +449,9 @@ const CURRICULUM = {
         prerequisiteIds: ['tn-1', 'tn-2', 'tn-3'],
         description: 'A classic English nursery rhyme using B, A, and G.',
         prompt: 'The same melody as the soprano, but on the larger tenor! Step through it slowly.',
-        noteIds: ['tn-1', 'tn-2', 'tn-3', 'tn-1', 'tn-2', 'tn-3', 'tn-3', 'tn-3', 'tn-3', 'tn-2', 'tn-2', 'tn-2', 'tn-2', 'tn-1', 'tn-2', 'tn-3'],
+        keySig: 1, timeSig: { num: 4, den: 4 },
+        noteIds: ['tn-1', 'tn-2', 'tn-3', 'tn-1', 'tn-2', 'tn-3', 'tn-3', 'tn-3', 'tn-3', 'tn-3', 'tn-2', 'tn-2', 'tn-2', 'tn-2', 'tn-1', 'tn-2', 'tn-3'],
+        durations: ['q', 'q', 'h', 'q', 'q', 'h', '8', '8', '8', '8', '8', '8', '8', '8', 'q', 'q', 'h'],
       },
       {
         id: 'tn-4', noteName: 'E', octave: 3, staffStep: -7, accidental: null, freq: 164.81,
@@ -465,7 +471,9 @@ const CURRICULUM = {
         prerequisiteIds: ['tn-1', 'tn-2', 'tn-3', 'tn-4', 'tn-5'],
         description: 'The tune behind "Mary Had a Little Lamb" using B through D.',
         prompt: 'This song uses your tenor\'s lower register. Listen to the warm, full sound!',
+        keySig: 1, timeSig: { num: 4, den: 4 },
         noteIds: ['tn-1', 'tn-2', 'tn-3', 'tn-2', 'tn-1', 'tn-1', 'tn-1', 'tn-2', 'tn-2', 'tn-2', 'tn-1', 'tn-1', 'tn-1', 'tn-1', 'tn-2', 'tn-3', 'tn-2', 'tn-1', 'tn-1', 'tn-1', 'tn-2', 'tn-2', 'tn-1', 'tn-2', 'tn-3'],
+        durations: ['q', 'q', 'q', 'q', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'w'],
       },
       {
         id: 'tn-review-1', type: 'review',
@@ -594,7 +602,9 @@ const CURRICULUM = {
         prerequisiteIds: ['br-1', 'br-2', 'br-3'],
         description: 'A classic English nursery rhyme using E, D, and C on the bass.',
         prompt: 'Step through the melody slowly. The bass needs lots of air!',
-        noteIds: ['br-1', 'br-2', 'br-3', 'br-1', 'br-2', 'br-3', 'br-3', 'br-3', 'br-3', 'br-2', 'br-2', 'br-2', 'br-2', 'br-1', 'br-2', 'br-3'],
+        keySig: 1, timeSig: { num: 4, den: 4 },
+        noteIds: ['br-1', 'br-2', 'br-3', 'br-1', 'br-2', 'br-3', 'br-3', 'br-3', 'br-3', 'br-3', 'br-2', 'br-2', 'br-2', 'br-2', 'br-1', 'br-2', 'br-3'],
+        durations: ['q', 'q', 'h', 'q', 'q', 'h', '8', '8', '8', '8', '8', '8', '8', '8', 'q', 'q', 'h'],
       },
       {
         id: 'br-4', noteName: 'B', octave: 2, staffStep: 2, accidental: null, freq: 123.47,
@@ -620,7 +630,9 @@ const CURRICULUM = {
         prerequisiteIds: ['br-1', 'br-2', 'br-3', 'br-4', 'br-5', 'br-6'],
         description: 'The tune behind "Mary Had a Little Lamb" using E through G.',
         prompt: 'Your first full melody on the bass recorder! Big, warm air throughout.',
+        keySig: 1, timeSig: { num: 4, den: 4 },
         noteIds: ['br-1', 'br-2', 'br-3', 'br-2', 'br-1', 'br-1', 'br-1', 'br-2', 'br-2', 'br-2', 'br-1', 'br-1', 'br-1', 'br-1', 'br-2', 'br-3', 'br-2', 'br-1', 'br-1', 'br-1', 'br-2', 'br-2', 'br-1', 'br-2', 'br-3'],
+        durations: ['q', 'q', 'q', 'q', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'w'],
       },
       {
         id: 'br-review-1', type: 'review',
