@@ -435,6 +435,8 @@ const Graphics = (() => {
     }
 
     // ── Bar lines (every 4 beats) ──────────────────────────────────────
+    const staffTop = yForPos(8) - HALF / 2;
+    const staffBot = yForPos(0) + HALF / 2;
     let beatAccum = 0;
     for (let i = 0; i < notes.length; i++) {
       const dur = notes[i].dur || 'q';
@@ -443,16 +445,16 @@ const Graphics = (() => {
       if (beatAccum >= 4 || i === notes.length - 1) {
         if (i < notes.length - 1) {
           const x = noteStartX + (i + 1) * SPACING - SPACING / 2;
-          s += `<line x1="${x}" y1="${yForPos(8) + 14}" x2="${x}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="1.5"/>`;
+          s += `<line x1="${x}" y1="${staffTop}" x2="${x}" y2="${staffBot}" stroke="${lineColor}" stroke-width="1.5"/>`;
         }
         beatAccum = 0;
       }
     }
 
-    // End bar line
+    // End bar line (thin left, thick right)
     const endX = noteStartX + notes.length * SPACING - SPACING / 2;
-    s += `<line x1="${endX}" y1="${yForPos(8) + 14}" x2="${endX}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="1.5"/>`;
-    s += `<line x1="${endX + 4}" y1="${yForPos(8) + 14}" x2="${endX + 4}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="3"/>`;
+    s += `<line x1="${endX}" y1="${staffTop}" x2="${endX}" y2="${staffBot}" stroke="${lineColor}" stroke-width="1.5"/>`;
+    s += `<line x1="${endX + 3}" y1="${staffTop}" x2="${endX + 3}" y2="${staffBot}" stroke="${lineColor}" stroke-width="4"/>`;
 
     // ── Precompute beam groups ──────────────────────────────────────────
     const beamGroups = [];
