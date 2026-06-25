@@ -387,7 +387,7 @@ const Graphics = (() => {
     const lineColor = '#524F70';
     const noteColor = accentColor;
 
-    let s = `<svg viewBox="0 0 ${totalW} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+    let s = `<svg viewBox="0 0 ${totalW} ${H}" width="${totalW}" height="${H}" xmlns="http://www.w3.org/2000/svg">`;
 
     // Staff lines
     for (let i = 0; i <= 8; i += 2) {
