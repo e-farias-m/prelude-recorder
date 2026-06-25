@@ -201,6 +201,22 @@ const CURRICULUM = {
         noteIds: ['sr-6', 'sr-5', 'sr-4', 'sr-7', 'sr-3', 'sr-2', 'sr-1', 'sr-8', 'sr-1', 'sr-2', 'sr-3', 'sr-7', 'sr-4', 'sr-5', 'sr-6'],
       },
       {
+        id: 'sr-song-9', type: 'song',
+        noteName: 'Chord Practice',
+        prerequisiteIds: ['sr-1', 'sr-2', 'sr-3', 'sr-4', 'sr-5', 'sr-6', 'sr-7', 'sr-8'],
+        description: 'Practice G and D major chords behind a simple melody. The app plays both harmony notes — you only hear them, not see them.',
+        prompt: 'Listen for the full chord sound as you play each melody note. Keep your air steady!',
+        noteIds: ['sr-3', 'sr-3', 'sr-3', 'sr-3', 'sr-6', 'sr-6', 'sr-6', 'sr-6', 'sr-3', 'sr-3', 'sr-3', 'sr-3', 'sr-6', 'sr-6', 'sr-6', 'sr-3'],
+        durations: ['q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q'],
+        keySig: 0, timeSig: { num: 4, den: 4 },
+        chordIds: [
+          ['sr-1', 'sr-6'], ['sr-1', 'sr-6'], ['sr-1', 'sr-6'], ['sr-1', 'sr-6'],
+          ['sr-2', 'sr-4'], ['sr-2', 'sr-4'], ['sr-2', 'sr-4'], ['sr-2', 'sr-4'],
+          ['sr-1', 'sr-6'], ['sr-1', 'sr-6'], ['sr-1', 'sr-6'], ['sr-1', 'sr-6'],
+          ['sr-2', 'sr-4'], ['sr-2', 'sr-4'], ['sr-2', 'sr-4'], ['sr-1', 'sr-6']
+        ],
+      },
+      {
         id: 'sr-9',
         noteName: 'D',
         octave: 6,

@@ -1004,7 +1004,16 @@ function runSongSequence(inst, lesson) {
   noteIds.forEach((id, i) => {
     const note = findLessonById(APP.instrumentId, id);
     setTimeout(() => {
-      AudioEngine.playInstrumentNote(note.freq, inst.fingeringType, 0.45);
+      const chordRefs = lesson.chordIds ? lesson.chordIds[i] || [] : [];
+      if (chordRefs.length > 0) {
+        const freqs = [note.freq].concat(chordRefs.map(function(cid) {
+          var cn = findLessonById(APP.instrumentId, cid);
+          return cn ? cn.freq : null;
+        }).filter(Boolean));
+        AudioEngine.playInstrumentChord(freqs, inst.fingeringType, 0.45);
+      } else {
+        AudioEngine.playInstrumentNote(note.freq, inst.fingeringType, 0.45);
+      }
     }, i * msPerBeat);
   });
 }
@@ -1062,10 +1071,19 @@ function runSongPlayback(inst, lesson) {
       }
     }
 
-    // Play note
+    // Play note (+ chord if present)
     const note = notes[i];
     const durMs = note.dur === 'h' ? 0.9 : note.dur === 'w' ? 1.6 : note.dur === '8' ? 0.22 : 0.45;
-    AudioEngine.playInstrumentNote(note.freq, inst.fingeringType, durMs);
+    const chordRefs = lesson && lesson.chordIds ? lesson.chordIds[i] || [] : [];
+    if (chordRefs.length > 0) {
+      const freqs = [note.freq].concat(chordRefs.map(function(id) {
+        var cn = findLessonById(APP.instrumentId, id);
+        return cn ? cn.freq : null;
+      }).filter(Boolean));
+      AudioEngine.playInstrumentChord(freqs, inst.fingeringType, durMs);
+    } else {
+      AudioEngine.playInstrumentNote(note.freq, inst.fingeringType, durMs);
+    }
 
     // Advance — half notes get 2 beats, whole notes 4, eighth notes 0.5
     const beats = note.dur === 'h' ? 2 : note.dur === 'w' ? 4 : note.dur === '8' ? 0.5 : 1;

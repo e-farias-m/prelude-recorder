@@ -119,7 +119,12 @@ const AudioEngine = (() => {
     playRecorder(freq, duration);
   }
 
+  function playInstrumentChord(freqs, fingeringType, duration = 1.1) {
+    getCtx();
+    freqs.forEach(function(f) { playRecorder(f, duration); });
+  }
+
   function unlock() { getCtx(); }
 
-  return { playInstrumentNote, playClick, playShortNote, unlock };
+  return { playInstrumentNote, playInstrumentChord, playClick, playShortNote, unlock };
 })();
