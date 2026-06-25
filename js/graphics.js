@@ -380,12 +380,20 @@ const Graphics = (() => {
   // ── SONG SCORE (multi-note staff for full songs) ───────────────────────────
   function songStaffSVG({ notes, clef = 'treble', accentColor = '#FF8C42', keySig = 0, timeSig = null }) {
     const SPACING = 48;
-    const MARGIN_L = 52;
     const MARGIN_R = 20;
-    const totalW = Math.ceil(MARGIN_L + notes.length * SPACING + MARGIN_R);
     const H = 220;
     const lineColor = '#524F70';
     const noteColor = accentColor;
+
+    // ── Compute layout: clef + key sig + time sig width → note start X ──
+    const SHARP_STEPS = [8, 5, 2, 6, 3, 7, 4];
+    const FLAT_STEPS  = [4, 7, 3, 6, 2, 5, 8];
+    let accX = 72;
+    if (keySig > 0)      accX += keySig * 12 + 8;
+    else if (keySig < 0) accX += Math.abs(keySig) * 12 + 8;
+    const noteStartX = accX + (timeSig ? 24 : 14);
+
+    const totalW = Math.ceil(noteStartX + notes.length * SPACING + MARGIN_R);
 
     let s = `<svg viewBox="0 0 ${totalW} ${H}" width="${totalW}" height="${H}" xmlns="http://www.w3.org/2000/svg">`;
 
@@ -403,9 +411,7 @@ const Graphics = (() => {
     }
 
     // ── Key signature ────────────────────────────────────────────────────
-    const SHARP_STEPS = [8, 5, 2, 6, 3, 7, 4]; // F5, C5, G4, D5, A4, E5, B4
-    const FLAT_STEPS  = [4, 7, 3, 6, 2, 5, 8]; // B4, E5, A4, D5, G4, C5, F5
-    let accX = 72;
+    accX = 72;
     if (keySig > 0) {
       for (let i = 0; i < keySig && i < SHARP_STEPS.length; i++) {
         const y = yForPos(SHARP_STEPS[i]);
@@ -428,17 +434,15 @@ const Graphics = (() => {
       s += `<text x="${tsX}" y="${yForPos(2) + 4}" font-size="22" fill="${lineColor}" font-family="Georgia, serif" text-anchor="middle">${timeSig.den}</text>`;
     }
 
-    // ── Bar lines (every 4 beats, respecting note durations) ────────────
-    // Simple approach: treat each note as 1 beat, half notes as 2 beats
+    // ── Bar lines (every 4 beats) ──────────────────────────────────────
     let beatAccum = 0;
-    let barStartX = MARGIN_L;
     for (let i = 0; i < notes.length; i++) {
       const dur = notes[i].dur || 'q';
-      const beats = dur === 'h' ? 2 : dur === 'w' ? 4 : 1;
+      const beats = dur === 'h' ? 2 : dur === 'w' ? 4 : dur === '8' ? 0.5 : 1;
       beatAccum += beats;
       if (beatAccum >= 4 || i === notes.length - 1) {
         if (i < notes.length - 1) {
-          const x = MARGIN_L + (i + 1) * SPACING - SPACING / 2;
+          const x = noteStartX + (i + 1) * SPACING - SPACING / 2;
           s += `<line x1="${x}" y1="${yForPos(8) + 14}" x2="${x}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="1" stroke-dasharray="4,3"/>`;
         }
         beatAccum = 0;
@@ -446,19 +450,17 @@ const Graphics = (() => {
     }
 
     // End bar line
-    const endX = MARGIN_L + notes.length * SPACING - SPACING / 2;
+    const endX = noteStartX + notes.length * SPACING - SPACING / 2;
     s += `<line x1="${endX}" y1="${yForPos(8) + 14}" x2="${endX}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="1.5"/>`;
     s += `<line x1="${endX + 4}" y1="${yForPos(8) + 14}" x2="${endX + 4}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="3"/>`;
 
     // ── Precompute beam groups ──────────────────────────────────────────
-    // Split consecutive eighth notes into groups of at most 4
     const beamGroups = [];
     let grpStart = -1;
     for (let i = 0; i < notes.length; i++) {
       const d = notes[i].dur || 'q';
       if (d === '8') {
         if (grpStart === -1) grpStart = i;
-        // Close group when we hit 4 notes
         if (i - grpStart === 3) {
           beamGroups.push({ start: grpStart, end: i });
           grpStart = -1;
@@ -472,7 +474,6 @@ const Graphics = (() => {
       beamGroups.push({ start: grpStart, end: notes.length - 1 });
     }
 
-    // Build quick-lookup: beamedIndices has index of first note -> last index
     const beamLookup = {};
     beamGroups.forEach(g => { beamLookup[g.start] = g.end; });
     const beamedSet = new Set();
@@ -480,7 +481,7 @@ const Graphics = (() => {
 
     // ── Notes ───────────────────────────────────────────────────────────
     notes.forEach((note, i) => {
-      const x = MARGIN_L + i * SPACING;
+      const x = noteStartX + i * SPACING;
       const y = yForPos(note.staffStep);
       const stemUp = note.staffStep <= 4;
       const dur = note.dur || 'q';
@@ -522,7 +523,7 @@ const Graphics = (() => {
         if (isEighth && isBeamStart) {
           // Draw beam connecting this note to the last note in the group
           const lastIdx = beamLookup[i];
-          const lastX = MARGIN_L + lastIdx * SPACING;
+          const lastX = noteStartX + lastIdx * SPACING;
           const lastNote = notes[lastIdx];
           const lastY = yForPos(lastNote.staffStep);
           const lastStemUp = lastNote.staffStep <= 4;
