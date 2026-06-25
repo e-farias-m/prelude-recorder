@@ -461,7 +461,7 @@ const Graphics = (() => {
       const d = notes[i].dur || 'q';
       if (d === '8') {
         if (grpStart === -1) grpStart = i;
-        if (i - grpStart === 3) {
+        if (i - grpStart === 1) {
           beamGroups.push({ start: grpStart, end: i });
           grpStart = -1;
         }
