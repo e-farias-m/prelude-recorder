@@ -77,6 +77,7 @@ const CURRICULUM = {
         prerequisiteIds: ['sr-1', 'sr-2', 'sr-3'],
         description: 'The tune behind "Mary Had a Little Lamb" using B, A, and G.',
         prompt: 'Listen for the repeating three-note pattern!',
+        keySig: 1, timeSig: { num: 4, den: 4 },
         noteIds: ['sr-1', 'sr-2', 'sr-3', 'sr-2', 'sr-1', 'sr-1', 'sr-1', 'sr-2', 'sr-2', 'sr-2', 'sr-1', 'sr-1', 'sr-1', 'sr-1', 'sr-2', 'sr-3', 'sr-2', 'sr-1', 'sr-1', 'sr-1', 'sr-2', 'sr-2', 'sr-1', 'sr-2', 'sr-3'],
       },
       {
