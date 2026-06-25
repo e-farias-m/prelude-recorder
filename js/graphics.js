@@ -443,7 +443,7 @@ const Graphics = (() => {
       if (beatAccum >= 4 || i === notes.length - 1) {
         if (i < notes.length - 1) {
           const x = noteStartX + (i + 1) * SPACING - SPACING / 2;
-          s += `<line x1="${x}" y1="${yForPos(8) + 14}" x2="${x}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="1" stroke-dasharray="4,3"/>`;
+          s += `<line x1="${x}" y1="${yForPos(8) + 14}" x2="${x}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="1.5"/>`;
         }
         beatAccum = 0;
       }
