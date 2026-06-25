@@ -405,9 +405,9 @@ const Graphics = (() => {
 
     // Clef
     if (clef === 'treble') {
-      s += `<text x="10" y="${STAFF_BOTTOM_Y + 8}" font-size="110" font-family="Georgia, 'Apple Symbols', serif" fill="${lineColor}">&#119070;</text>`;
+      s += `<text x="10" y="${STAFF_BOTTOM_Y + 8}" font-size="121" font-family="Georgia, 'Apple Symbols', serif" fill="${lineColor}">&#119070;</text>`;
     } else {
-      s += `<text x="12" y="${yForPos(3) + 10}" font-size="70" font-family="Georgia, 'Apple Symbols', serif" fill="${lineColor}">&#119074;</text>`;
+      s += `<text x="12" y="${yForPos(3) + 10}" font-size="77" font-family="Georgia, 'Apple Symbols', serif" fill="${lineColor}">&#119074;</text>`;
     }
 
     // ── Key signature ────────────────────────────────────────────────────
@@ -415,14 +415,14 @@ const Graphics = (() => {
     if (keySig > 0) {
       for (let i = 0; i < keySig && i < SHARP_STEPS.length; i++) {
         const y = yForPos(SHARP_STEPS[i]);
-        s += `<text x="${accX + i * 12}" y="${y + 6}" font-size="18" fill="${lineColor}" font-family="Georgia, serif">♯</text>`;
+        s += `<text x="${accX + i * 12}" y="${y + 7}" font-size="22" fill="${lineColor}" font-family="Georgia, serif">♯</text>`;
       }
       accX += keySig * 12 + 8;
     } else if (keySig < 0) {
       const nFlat = Math.abs(keySig);
       for (let i = 0; i < nFlat && i < FLAT_STEPS.length; i++) {
         const y = yForPos(FLAT_STEPS[i]);
-        s += `<text x="${accX + i * 12}" y="${y + 16}" font-size="18" fill="${lineColor}" font-family="Georgia, serif">♭</text>`;
+        s += `<text x="${accX + i * 12}" y="${y + 18}" font-size="22" fill="${lineColor}" font-family="Georgia, serif">♭</text>`;
       }
       accX += nFlat * 12 + 8;
     }
@@ -430,8 +430,8 @@ const Graphics = (() => {
     // ── Time signature ──────────────────────────────────────────────────
     if (timeSig) {
       const tsX = accX + 4;
-      s += `<text x="${tsX}" y="${yForPos(4) + 4}" font-size="22" fill="${lineColor}" font-family="Georgia, serif" text-anchor="middle">${timeSig.num}</text>`;
-      s += `<text x="${tsX}" y="${yForPos(2) + 4}" font-size="22" fill="${lineColor}" font-family="Georgia, serif" text-anchor="middle">${timeSig.den}</text>`;
+      s += `<text x="${tsX}" y="${yForPos(6) + 2}" font-size="24" fill="${lineColor}" font-family="Georgia, serif" text-anchor="middle">${timeSig.num}</text>`;
+      s += `<text x="${tsX}" y="${yForPos(0) + 2}" font-size="24" fill="${lineColor}" font-family="Georgia, serif" text-anchor="middle">${timeSig.den}</text>`;
     }
 
     // ── Bar lines (every 4 beats) ──────────────────────────────────────
