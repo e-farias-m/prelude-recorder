@@ -17,6 +17,7 @@ const APP = {
   reviewTotal: 0,
   // Song session state
   songNoteIndex: 0,
+  songSpeed: 1.0,
 };
 
 const VERSION = '1.0.1';
@@ -562,6 +563,11 @@ function renderSongPlayPhase(inst, lesson) {
       </div>
       <div class="song-playback-controls">
         ${playBtn}
+        <div class="song-speed-control">
+          <button class="btn-speed" data-action="song-speed-down" ${playback.active ? 'disabled' : ''}>−</button>
+          <span class="song-speed-label">${Math.round(APP.songSpeed * 100)}%</span>
+          <button class="btn-speed" data-action="song-speed-up" ${playback.active ? 'disabled' : ''}>+</button>
+        </div>
       </div>
     </div>
     <div class="action-bar">
@@ -927,7 +933,7 @@ function runPlaySequence(inst, lesson, listenOnly) {
   if (!btn || btn.disabled) return;
   btn.disabled = true;
   btn.textContent = '...';
-  const beatMs = 280;
+  const beatMs = 420;
   const cells = document.querySelectorAll('.beat-cell');
 
   function clearActive() { cells.forEach(c => c.classList.remove('active')); }
@@ -1009,7 +1015,7 @@ function runSongPlayback(inst, lesson) {
   const rawNotes = lesson.noteIds.map(id => findLessonById(APP.instrumentId, id));
   const durations = lesson.durations || [];
   const notes = rawNotes.map((n, i) => ({ ...n, dur: durations[i] || 'q' }));
-  const msPerBeat = 480;
+  const msPerBeat = 480 / APP.songSpeed;
 
   APP.songPlayback = { active: true, index: -1, timer: null, finished: false };
   if (APP.songPlayback.timer) clearTimeout(APP.songPlayback.timer);
@@ -1132,6 +1138,17 @@ function handleAction(action, el) {
       const lesson = getLesson(APP.instrumentId, APP.lessonIndex);
       if (APP.songPlayback && APP.songPlayback.timer) clearTimeout(APP.songPlayback.timer);
       runSongPlayback(inst, lesson);
+      break;
+    }
+
+    case 'song-speed-down': {
+      APP.songSpeed = Math.max(0.4, APP.songSpeed - 0.15);
+      render();
+      break;
+    }
+    case 'song-speed-up': {
+      APP.songSpeed = Math.min(2.0, APP.songSpeed + 0.15);
+      render();
       break;
     }
 

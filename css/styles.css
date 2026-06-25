@@ -1006,6 +1006,40 @@ button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2
   min-width: 100px;
 }
 
+.song-speed-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.btn-speed {
+  width: 32px;
+  height: 32px;
+  border: 2px solid #524F70;
+  border-radius: 50%;
+  background: transparent;
+  color: #E0DDFF;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.btn-speed:disabled { opacity: 0.35; cursor: default; }
+.btn-speed:hover:not(:disabled) { background: #524F70; }
+
+.song-speed-label {
+  min-width: 44px;
+  text-align: center;
+  font-size: 14px;
+  color: #A29EC8;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── NAME PROMPT OVERLAY ──────────────────────────────────────────────────── */
 .name-overlay {
   position: fixed;
