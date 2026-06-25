@@ -391,7 +391,7 @@ const Graphics = (() => {
     let accX = 52;
     if (keySig > 0)      accX += keySig * 14 + 8;
     else if (keySig < 0) accX += Math.abs(keySig) * 14 + 8;
-    const noteStartX = accX + (timeSig ? 24 : 14);
+    const noteStartX = accX + (timeSig ? 34 : 14);
 
     const totalW = Math.ceil(noteStartX + notes.length * SPACING + MARGIN_R);
 
