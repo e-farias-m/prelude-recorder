@@ -450,6 +450,28 @@ const Graphics = (() => {
     s += `<line x1="${endX}" y1="${yForPos(8) + 14}" x2="${endX}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="1.5"/>`;
     s += `<line x1="${endX + 4}" y1="${yForPos(8) + 14}" x2="${endX + 4}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="3"/>`;
 
+    // ── Precompute beam groups ──────────────────────────────────────────
+    const beamGroups = [];
+    let grpStart = -1;
+    for (let i = 0; i < notes.length; i++) {
+      const d = notes[i].dur || 'q';
+      if (d === '8') {
+        if (grpStart === -1) grpStart = i;
+      } else {
+        if (grpStart !== -1 && i - grpStart >= 2) beamGroups.push({ start: grpStart, end: i - 1 });
+        grpStart = -1;
+      }
+    }
+    if (grpStart !== -1 && notes.length - grpStart >= 2) {
+      beamGroups.push({ start: grpStart, end: notes.length - 1 });
+    }
+
+    // Build quick-lookup: beamedIndices has index of first note -> last index
+    const beamLookup = {};
+    beamGroups.forEach(g => { beamLookup[g.start] = g.end; });
+    const beamedSet = new Set();
+    beamGroups.forEach(g => { for (let j = g.start; j <= g.end; j++) beamedSet.add(j); });
+
     // ── Notes ───────────────────────────────────────────────────────────
     notes.forEach((note, i) => {
       const x = MARGIN_L + i * SPACING;
@@ -460,6 +482,8 @@ const Graphics = (() => {
       const isWhole = dur === 'w';
       const isEighth = dur === '8';
       const filled = !isHalf && !isWhole;
+      const isBeamed = beamedSet.has(i);
+      const isBeamStart = beamLookup[i] !== undefined;
 
       // Ledger lines
       ledgerPositions(note.staffStep).forEach(p => {
@@ -488,12 +512,33 @@ const Graphics = (() => {
         } else {
           s += `<line x1="${x - 6.5}" y1="${y}" x2="${x - 6.5}" y2="${y + 42}" stroke="${noteColor}" stroke-width="2"/>`;
         }
-        // Flag for eighth notes
-        if (isEighth) {
+
+        if (isEighth && isBeamStart) {
+          // Draw beam connecting this note to the last note in the group
+          const lastIdx = beamLookup[i];
+          const lastX = MARGIN_L + lastIdx * SPACING;
+          const lastNote = notes[lastIdx];
+          const lastY = yForPos(lastNote.staffStep);
+          const lastStemUp = lastNote.staffStep <= 4;
+          const bTipX1 = stemUp ? x + 6.5 : x - 6.5;
+          const bTipY1 = stemUp ? y - 42 : y + 42;
+          const bTipX2 = lastStemUp ? lastX + 6.5 : lastX - 6.5;
+          const bTipY2 = lastStemUp ? lastY - 42 : lastY + 42;
+          const bw = 8;
+          // Shortest flag on the first note as a visual cue
+          s += `<path d="M${bTipX1} ${bTipY1} Q${bTipX1 + (stemUp ? 10 : -10)} ${bTipY1 + (stemUp ? 4 : -4)} ${bTipX1 + 5} ${bTipY1 + 12}" stroke="${noteColor}" stroke-width="2" fill="none"/>`;
+          if (stemUp) {
+            s += `<polygon points="${bTipX1},${bTipY1} ${bTipX2},${bTipY2} ${bTipX2},${bTipY2 + bw} ${bTipX1},${bTipY1 + bw}" fill="${noteColor}"/>`;
+          } else {
+            s += `<polygon points="${bTipX1},${bTipY1} ${bTipX2},${bTipY2} ${bTipX2},${bTipY2 - bw} ${bTipX1},${bTipY1 - bw}" fill="${noteColor}"/>`;
+          }
+        } else if (isEighth && !isBeamed) {
+          // Individual flag for standalone eighth notes
           const flagX = stemUp ? x + 6.5 : x - 6.5;
           const flagY = stemUp ? y - 42 : y + 42;
           s += `<path d="M${flagX} ${flagY} Q${flagX + 12} ${flagY + 6} ${flagX + 6} ${flagY + 16}" stroke="${noteColor}" stroke-width="2" fill="none"/>`;
         }
+        // Beamed notes that are not the beam start: no flag, no beam drawn
       }
 
       s += `</g>`;
