@@ -1015,6 +1015,7 @@ function runSongPlayback(inst, lesson) {
   const rawNotes = lesson.noteIds.map(id => findLessonById(APP.instrumentId, id));
   const durations = lesson.durations || [];
   const notes = rawNotes.map((n, i) => ({ ...n, dur: durations[i] || 'q' }));
+  const filled = notes.map(n => n.dur !== 'h' && n.dur !== 'w');
   const msPerBeat = 480 / APP.songSpeed;
 
   APP.songPlayback = { active: true, index: -1, timer: null, finished: false };
@@ -1033,9 +1034,17 @@ function runSongPlayback(inst, lesson) {
 
     // Clear previous highlight
     if (container) {
-      container.querySelectorAll('[data-note-index] ellipse').forEach(el => {
-        el.setAttribute('fill', accentColor);
-        el.setAttribute('stroke', accentColor);
+      container.querySelectorAll('[data-note-index]').forEach(g => {
+        const idx = parseInt(g.getAttribute('data-note-index'));
+        const el = g.querySelector('ellipse');
+        if (!el) return;
+        if (filled[idx]) {
+          el.setAttribute('fill', accentColor);
+          el.setAttribute('stroke', accentColor);
+        } else {
+          el.setAttribute('fill', 'none');
+          el.setAttribute('stroke', accentColor);
+        }
       });
     }
 
