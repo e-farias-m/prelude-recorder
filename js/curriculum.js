@@ -67,7 +67,9 @@ const CURRICULUM = {
         prerequisiteIds: ['sr-1', 'sr-2', 'sr-3'],
         description: 'A classic English nursery rhyme using B, A, and G.',
         prompt: 'Step through each note of the melody, then play along!',
+        keySig: 1, timeSig: { num: 4, den: 4 },
         noteIds: ['sr-1', 'sr-2', 'sr-3', 'sr-1', 'sr-2', 'sr-3', 'sr-3', 'sr-3', 'sr-3', 'sr-2', 'sr-2', 'sr-2', 'sr-2', 'sr-1', 'sr-2', 'sr-3'],
+        durations: ['q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q'],
       },
       {
         id: 'sr-song-2', type: 'song',

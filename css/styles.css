@@ -447,12 +447,7 @@ button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2
   line-height: 1;
 }
 
-.note-octave-sup {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-muted);
-  vertical-align: super;
-}
+
 
 .note-description {
   font-size: 14px;

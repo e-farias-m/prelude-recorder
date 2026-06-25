@@ -378,7 +378,7 @@ const Graphics = (() => {
   }
 
   // ── SONG SCORE (multi-note staff for full songs) ───────────────────────────
-  function songStaffSVG({ notes, clef = 'treble', accentColor = '#FF8C42' }) {
+  function songStaffSVG({ notes, clef = 'treble', accentColor = '#FF8C42', keySig = 0, timeSig = null }) {
     const SPACING = 48;
     const MARGIN_L = 52;
     const MARGIN_R = 20;
@@ -402,23 +402,64 @@ const Graphics = (() => {
       s += `<text x="12" y="${yForPos(3) + 10}" font-size="70" font-family="Georgia, 'Apple Symbols', serif" fill="${lineColor}">&#119074;</text>`;
     }
 
-    // Bar lines every 4 notes
-    for (let k = 4; k < notes.length; k += 4) {
-      const x = MARGIN_L + k * SPACING - SPACING / 2;
-      s += `<line x1="${x}" y1="${yForPos(8) + 14}" x2="${x}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="1" stroke-dasharray="4,3"/>`;
+    // ── Key signature ────────────────────────────────────────────────────
+    const SHARP_STEPS = [8, 5, 2, 6, 3, 7, 4]; // F5, C5, G4, D5, A4, E5, B4
+    const FLAT_STEPS  = [4, 7, 3, 6, 2, 5, 8]; // B4, E5, A4, D5, G4, C5, F5
+    let accX = 72;
+    if (keySig > 0) {
+      for (let i = 0; i < keySig && i < SHARP_STEPS.length; i++) {
+        const y = yForPos(SHARP_STEPS[i]);
+        s += `<text x="${accX + i * 12}" y="${y + 6}" font-size="18" fill="${lineColor}" font-family="Georgia, serif">♯</text>`;
+      }
+      accX += keySig * 12 + 8;
+    } else if (keySig < 0) {
+      const nFlat = Math.abs(keySig);
+      for (let i = 0; i < nFlat && i < FLAT_STEPS.length; i++) {
+        const y = yForPos(FLAT_STEPS[i]);
+        s += `<text x="${accX + i * 12}" y="${y + 16}" font-size="18" fill="${lineColor}" font-family="Georgia, serif">♭</text>`;
+      }
+      accX += nFlat * 12 + 8;
     }
 
-    // End bar line (thin)
+    // ── Time signature ──────────────────────────────────────────────────
+    if (timeSig) {
+      const tsX = accX + 4;
+      s += `<text x="${tsX}" y="${yForPos(4) + 4}" font-size="22" fill="${lineColor}" font-family="Georgia, serif" text-anchor="middle">${timeSig.num}</text>`;
+      s += `<text x="${tsX}" y="${yForPos(2) + 4}" font-size="22" fill="${lineColor}" font-family="Georgia, serif" text-anchor="middle">${timeSig.den}</text>`;
+    }
+
+    // ── Bar lines (every 4 beats, respecting note durations) ────────────
+    // Simple approach: treat each note as 1 beat, half notes as 2 beats
+    let beatAccum = 0;
+    let barStartX = MARGIN_L;
+    for (let i = 0; i < notes.length; i++) {
+      const dur = notes[i].dur || 'q';
+      const beats = dur === 'h' ? 2 : dur === 'w' ? 4 : 1;
+      beatAccum += beats;
+      if (beatAccum >= 4 || i === notes.length - 1) {
+        if (i < notes.length - 1) {
+          const x = MARGIN_L + (i + 1) * SPACING - SPACING / 2;
+          s += `<line x1="${x}" y1="${yForPos(8) + 14}" x2="${x}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="1" stroke-dasharray="4,3"/>`;
+        }
+        beatAccum = 0;
+      }
+    }
+
+    // End bar line
     const endX = MARGIN_L + notes.length * SPACING - SPACING / 2;
     s += `<line x1="${endX}" y1="${yForPos(8) + 14}" x2="${endX}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="1.5"/>`;
-    // End bar line (thick)
     s += `<line x1="${endX + 4}" y1="${yForPos(8) + 14}" x2="${endX + 4}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="3"/>`;
 
-    // Notes
+    // ── Notes ───────────────────────────────────────────────────────────
     notes.forEach((note, i) => {
       const x = MARGIN_L + i * SPACING;
       const y = yForPos(note.staffStep);
       const stemUp = note.staffStep <= 4;
+      const dur = note.dur || 'q';
+      const isHalf = dur === 'h';
+      const isWhole = dur === 'w';
+      const isEighth = dur === '8';
+      const filled = !isHalf && !isWhole;
 
       // Ledger lines
       ledgerPositions(note.staffStep).forEach(p => {
@@ -432,12 +473,29 @@ const Graphics = (() => {
       }
 
       s += `<g data-note-index="${i}">`;
-      s += `<ellipse cx="${x}" cy="${y}" rx="7" ry="5" fill="${noteColor}" transform="rotate(-18 ${x} ${y})"/>`;
-      if (stemUp) {
-        s += `<line x1="${x + 6.5}" y1="${y}" x2="${x + 6.5}" y2="${y - 42}" stroke="${noteColor}" stroke-width="2"/>`;
+
+      // Notehead
+      if (filled) {
+        s += `<ellipse cx="${x}" cy="${y}" rx="7" ry="5" fill="${noteColor}" transform="rotate(-18 ${x} ${y})"/>`;
       } else {
-        s += `<line x1="${x - 6.5}" y1="${y}" x2="${x - 6.5}" y2="${y + 42}" stroke="${noteColor}" stroke-width="2"/>`;
+        s += `<ellipse cx="${x}" cy="${y}" rx="7" ry="5" fill="none" stroke="${noteColor}" stroke-width="2.5" transform="rotate(-18 ${x} ${y})"/>`;
       }
+
+      // Stem (no stem for whole notes)
+      if (!isWhole) {
+        if (stemUp) {
+          s += `<line x1="${x + 6.5}" y1="${y}" x2="${x + 6.5}" y2="${y - 42}" stroke="${noteColor}" stroke-width="2"/>`;
+        } else {
+          s += `<line x1="${x - 6.5}" y1="${y}" x2="${x - 6.5}" y2="${y + 42}" stroke="${noteColor}" stroke-width="2"/>`;
+        }
+        // Flag for eighth notes
+        if (isEighth) {
+          const flagX = stemUp ? x + 6.5 : x - 6.5;
+          const flagY = stemUp ? y - 42 : y + 42;
+          s += `<path d="M${flagX} ${flagY} Q${flagX + 12} ${flagY + 6} ${flagX + 6} ${flagY + 16}" stroke="${noteColor}" stroke-width="2" fill="none"/>`;
+        }
+      }
+
       s += `</g>`;
     });
 

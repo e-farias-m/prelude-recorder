@@ -364,7 +364,7 @@ function renderReferenceOverlay() {
     <div class="screen active reference-overlay" id="reference-overlay">
       <div class="reference-content">
         <div class="reference-header">
-          <span class="reference-note-name">${lesson.noteName}<span class="note-octave-sup">${lesson.octave}</span></span>
+          <span class="reference-note-name">${lesson.noteName}</span>
           <button class="btn-icon" data-action="close-reference" style="background:none;border:none;cursor:pointer;font-size:24px;">✕</button>
         </div>
         <div class="reference-diagrams">
@@ -399,7 +399,7 @@ function renderMapScreen() {
     let stateCls = 'locked';
     let inner = `<span class="map-node-lock">🔒</span>`;
     let masteryHtml = '';
-    let label = isReview ? lesson.noteName : isSongLesson(lesson) ? lesson.noteName : `${lesson.noteName}${lesson.octave}`;
+    let label = isReview ? lesson.noteName : isSongLesson(lesson) ? lesson.noteName : lesson.noteName;
 
     if (isReview && unlocked && completed) {
       stateCls = 'review-done';
@@ -519,7 +519,7 @@ function renderPresentPhase(inst, lesson) {
         </div>
       </div>
       <div class="note-name-block">
-        <span class="note-name-big">${lesson.noteName}<span class="note-octave-sup">${lesson.octave}</span></span>
+        <span class="note-name-big">${lesson.noteName}</span>
       </div>
       <div class="note-description">${lesson.description}</div>
       ${transposeNote}
@@ -534,12 +534,14 @@ function renderPresentPhase(inst, lesson) {
 }
 
 function renderSongPlayPhase(inst, lesson) {
-  const notes = lesson.noteIds.map(id => findLessonById(APP.instrumentId, id));
+  const rawNotes = lesson.noteIds.map(id => findLessonById(APP.instrumentId, id));
+  const durations = lesson.durations || [];
+  const notes = rawNotes.map((n, i) => ({ ...n, dur: durations[i] || 'q' }));
   const totalNotes = notes.length;
   const playback = APP.songPlayback || { active: false, index: -1 };
   const hasFinished = playback.finished;
 
-  const staffSvg = Graphics.songStaffSVG({ notes, clef: inst.clef, accentColor: inst.accentColor });
+  const staffSvg = Graphics.songStaffSVG({ notes, clef: inst.clef, accentColor: inst.accentColor, keySig: lesson.keySig || 0, timeSig: lesson.timeSig || null });
 
   const playBtn = hasFinished
     ? `<button class="btn btn-secondary" data-action="song-replay">↻ Replay</button>`
@@ -633,11 +635,11 @@ function renderQuizPhase(inst, lesson) {
   if (q.quizType === QUIZ_TYPES.FINGERING_TO_NOTE) {
     promptHtml = `<div class="quiz-prompt-svg">${Graphics.fingeringSVG(inst.fingeringType, q.prompt.fingeringState, inst.accentColor, 100)}</div>`;
   } else if (q.quizType === QUIZ_TYPES.NOTE_TO_FINGERING) {
-    promptHtml = `<div class="quiz-prompt-note">${q.prompt.noteName}<span style="font-size:24px;color:var(--text-muted);vertical-align:super">${q.prompt.octave}</span></div>`;
+    promptHtml = `<div class="quiz-prompt-note">${q.prompt.noteName}</div>`;
   } else if (q.quizType === QUIZ_TYPES.STAFF_TO_NOTE) {
     promptHtml = `<div class="quiz-prompt-svg">${Graphics.staffSVG({ pos: q.prompt.staffStep, accidental: q.prompt.accidental, clef: inst.clef, accentColor: inst.accentColor, width: 100 })}</div>`;
   } else if (q.quizType === QUIZ_TYPES.NOTE_TO_STAFF) {
-    promptHtml = `<div class="quiz-prompt-note">${q.prompt.noteName}<span style="font-size:24px;color:var(--text-muted);vertical-align:super">${q.prompt.octave}</span></div>`;
+    promptHtml = `<div class="quiz-prompt-note">${q.prompt.noteName}</div>`;
   }
 
   // ── OPTIONS ──
@@ -653,12 +655,12 @@ function renderQuizPhase(inst, lesson) {
     let content = '';
     if (q.quizType === QUIZ_TYPES.FINGERING_TO_NOTE) {
       cls += ' text-only';
-      content = `<div class="quiz-option-note">${opt.noteName}<span style="font-size:18px;color:var(--text-muted);vertical-align:super">${opt.octave}</span></div>`;
+      content = `<div class="quiz-option-note">${opt.noteName}</div>`;
     } else if (q.quizType === QUIZ_TYPES.NOTE_TO_FINGERING) {
       content = `<div class="quiz-option-svg">${Graphics.fingeringSVG(inst.fingeringType, opt.fingeringState, inst.accentColor, 72)}</div>`;
     } else if (q.quizType === QUIZ_TYPES.STAFF_TO_NOTE) {
       cls += ' text-only';
-      content = `<div class="quiz-option-note">${opt.noteName}<span style="font-size:18px;color:var(--text-muted);vertical-align:super">${opt.octave}</span></div>`;
+      content = `<div class="quiz-option-note">${opt.noteName}</div>`;
     } else if (q.quizType === QUIZ_TYPES.NOTE_TO_STAFF) {
       content = `<div class="quiz-option-svg">${Graphics.staffSVG({ pos: opt.staffStep, accidental: opt.accidental, clef: inst.clef, accentColor: inst.accentColor, width: 72 })}</div>`;
     }
@@ -701,7 +703,7 @@ function renderPlayPhase(inst, lesson) {
       <div class="play-layout">
         <div class="play-diagram-large">
           ${fingeringSvg}
-          <span class="play-note-label">${lesson.noteName}${lesson.octave}</span>
+          <span class="play-note-label">${lesson.noteName}</span>
         </div>
         <div class="beat-grid">${cells}${playCell}</div>
         <div class="play-status" id="play-status">Tap Start, then play along on the count.</div>
@@ -735,7 +737,7 @@ function renderCompletePhase(inst, lesson) {
       const color = getMasteryColor(level);
       return `
         <div class="review-note-row">
-          <span class="review-note-name">${note.noteName}${note.octave}</span>
+          <span class="review-note-name">${note.noteName}</span>
           <span class="review-note-badge" style="background:${color}22;color:${color}">${getMasteryLabel(level)}</span>
         </div>`;
     }).join('');
@@ -811,7 +813,7 @@ function renderGameScreen() {
     const staffSvg = Graphics.staffSVG({ pos: current.staffStep, accidental: current.accidental, clef: inst.clef, accentColor: inst.accentColor, width: 100 });
     noteDisplay = `<div class="game-staff">${staffSvg}</div>`;
   } else if (current && state.showingResult !== undefined) {
-    noteDisplay = `<div class="game-result">${state.showingResult ? '✓' : '✗'} ${current.noteName}${current.octave}</div>`;
+    noteDisplay = `<div class="game-result">${state.showingResult ? '✓' : '✗'} ${current.noteName}</div>`;
   }
 
   const options = (state.choices || []).map(c => {
@@ -1004,7 +1006,9 @@ function runSongSequence(inst, lesson) {
 function runSongPlayback(inst, lesson) {
   if (APP.songPlayback && APP.songPlayback.active) return;
   AudioEngine.unlock();
-  const notes = lesson.noteIds.map(id => findLessonById(APP.instrumentId, id));
+  const rawNotes = lesson.noteIds.map(id => findLessonById(APP.instrumentId, id));
+  const durations = lesson.durations || [];
+  const notes = rawNotes.map((n, i) => ({ ...n, dur: durations[i] || 'q' }));
   const msPerBeat = 480;
 
   APP.songPlayback = { active: true, index: -1, timer: null, finished: false };
@@ -1025,6 +1029,7 @@ function runSongPlayback(inst, lesson) {
     if (container) {
       container.querySelectorAll('[data-note-index] ellipse').forEach(el => {
         el.setAttribute('fill', accentColor);
+        el.setAttribute('stroke', accentColor);
       });
     }
 
@@ -1033,16 +1038,22 @@ function runSongPlayback(inst, lesson) {
       const g = container.querySelector(`[data-note-index="${i}"]`);
       if (g) {
         const ellipse = g.querySelector('ellipse');
-        if (ellipse) ellipse.setAttribute('fill', '#FFD166');
+        if (ellipse) {
+          ellipse.setAttribute('fill', '#FFD166');
+          ellipse.setAttribute('stroke', '#FFD166');
+        }
         g.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       }
     }
 
     // Play note
     const note = notes[i];
-    AudioEngine.playInstrumentNote(note.freq, inst.fingeringType, 0.45);
+    const durMs = note.dur === 'h' ? 0.9 : note.dur === 'w' ? 1.6 : 0.45;
+    AudioEngine.playInstrumentNote(note.freq, inst.fingeringType, durMs);
 
-    APP.songPlayback.timer = setTimeout(() => step(i + 1), msPerBeat);
+    // Advance — half notes get 2 beats, whole notes 4
+    const beats = note.dur === 'h' ? 2 : note.dur === 'w' ? 4 : 1;
+    APP.songPlayback.timer = setTimeout(() => step(i + 1), msPerBeat * beats);
   }
 
   // Start after a short pre-count
