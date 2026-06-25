@@ -79,7 +79,7 @@ const CURRICULUM = {
         prompt: 'Listen for the repeating three-note pattern!',
         keySig: 1, timeSig: { num: 4, den: 4 },
         noteIds: ['sr-1', 'sr-2', 'sr-3', 'sr-2', 'sr-1', 'sr-1', 'sr-1', 'sr-2', 'sr-2', 'sr-2', 'sr-1', 'sr-1', 'sr-1', 'sr-1', 'sr-2', 'sr-3', 'sr-2', 'sr-1', 'sr-1', 'sr-1', 'sr-2', 'sr-2', 'sr-1', 'sr-2', 'sr-3'],
-        durations: ['q', 'q', 'q', 'q', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'w'],
+        durations: ['q', 'q', 'q', 'q', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'h', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'w'],
       },
       {
         id: 'sr-4',
