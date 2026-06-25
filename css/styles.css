@@ -961,25 +961,54 @@ button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2
 }
 
 /* ── SONG LESSON ────────────────────────────────────────────────────────── */
-.song-progress {
-  font-size: 11px;
+.song-score-card {
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 8px 0;
+  margin-bottom: 16px;
+}
+
+.song-score-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+.song-score-wrap svg {
+  display: block;
+  height: 160px;
+  width: auto;
+}
+
+.song-title {
+  font-size: 20px;
   font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--accent-cool);
-  margin-bottom: 12px;
-  text-align: center;
+  color: var(--accent-warm);
+  letter-spacing: -0.03em;
+  margin-bottom: 6px;
+  padding: 0 4px;
 }
 
-.song-nav {
+.song-note-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  letter-spacing: 0.04em;
+  padding: 0 4px;
+}
+
+.song-playback-controls {
   display: flex;
-  gap: 10px;
-  align-items: center;
-  justify-content: center;
+  gap: 12px;
+  margin-top: 8px;
+  flex-wrap: wrap;
 }
 
-.song-nav .btn {
+.song-playback-controls .btn {
   flex: 1;
+  min-width: 100px;
 }
 
 /* ── NAME PROMPT OVERLAY ──────────────────────────────────────────────────── */

@@ -377,5 +377,73 @@ const Graphics = (() => {
     }
   }
 
-  return { staffSVG, fingeringSVG, recorderFingeringSVG, valveFingeringSVG, tromboneFingeringSVG, woodwindFingeringSVG, instrumentIconSVG, yForPos, ledgerPositions };
+  // ── SONG SCORE (multi-note staff for full songs) ───────────────────────────
+  function songStaffSVG({ notes, clef = 'treble', accentColor = '#FF8C42' }) {
+    const SPACING = 48;
+    const MARGIN_L = 52;
+    const MARGIN_R = 20;
+    const totalW = Math.ceil(MARGIN_L + notes.length * SPACING + MARGIN_R);
+    const H = 220;
+    const lineColor = '#524F70';
+    const noteColor = accentColor;
+
+    let s = `<svg viewBox="0 0 ${totalW} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+
+    // Staff lines
+    for (let i = 0; i <= 8; i += 2) {
+      const y = yForPos(i);
+      s += `<line x1="0" y1="${y}" x2="${totalW}" y2="${y}" stroke="${lineColor}" stroke-width="1.5"/>`;
+    }
+
+    // Clef
+    if (clef === 'treble') {
+      s += `<text x="10" y="${STAFF_BOTTOM_Y + 8}" font-size="110" font-family="Georgia, 'Apple Symbols', serif" fill="${lineColor}">&#119070;</text>`;
+    } else {
+      s += `<text x="12" y="${yForPos(3) + 10}" font-size="70" font-family="Georgia, 'Apple Symbols', serif" fill="${lineColor}">&#119074;</text>`;
+    }
+
+    // Bar lines every 4 notes
+    for (let k = 4; k < notes.length; k += 4) {
+      const x = MARGIN_L + k * SPACING - SPACING / 2;
+      s += `<line x1="${x}" y1="${yForPos(8) + 14}" x2="${x}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="1" stroke-dasharray="4,3"/>`;
+    }
+
+    // End bar line (thin)
+    const endX = MARGIN_L + notes.length * SPACING - SPACING / 2;
+    s += `<line x1="${endX}" y1="${yForPos(8) + 14}" x2="${endX}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="1.5"/>`;
+    // End bar line (thick)
+    s += `<line x1="${endX + 4}" y1="${yForPos(8) + 14}" x2="${endX + 4}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="3"/>`;
+
+    // Notes
+    notes.forEach((note, i) => {
+      const x = MARGIN_L + i * SPACING;
+      const y = yForPos(note.staffStep);
+      const stemUp = note.staffStep <= 4;
+
+      // Ledger lines
+      ledgerPositions(note.staffStep).forEach(p => {
+        const ly = yForPos(p);
+        s += `<line x1="${x - 12}" y1="${ly}" x2="${x + 12}" y2="${ly}" stroke="${lineColor}" stroke-width="1.5"/>`;
+      });
+
+      // Accidental
+      if (note.accidental) {
+        s += `<text x="${x - 22}" y="${y + 6}" font-size="20" fill="${accentColor}" font-family="Georgia, serif">${note.accidental}</text>`;
+      }
+
+      s += `<g data-note-index="${i}">`;
+      s += `<ellipse cx="${x}" cy="${y}" rx="7" ry="5" fill="${noteColor}" transform="rotate(-18 ${x} ${y})"/>`;
+      if (stemUp) {
+        s += `<line x1="${x + 6.5}" y1="${y}" x2="${x + 6.5}" y2="${y - 42}" stroke="${noteColor}" stroke-width="2"/>`;
+      } else {
+        s += `<line x1="${x - 6.5}" y1="${y}" x2="${x - 6.5}" y2="${y + 42}" stroke="${noteColor}" stroke-width="2"/>`;
+      }
+      s += `</g>`;
+    });
+
+    s += `</svg>`;
+    return s;
+  }
+
+  return { staffSVG, songStaffSVG, fingeringSVG, recorderFingeringSVG, valveFingeringSVG, tromboneFingeringSVG, woodwindFingeringSVG, instrumentIconSVG, yForPos, ledgerPositions };
 })();
