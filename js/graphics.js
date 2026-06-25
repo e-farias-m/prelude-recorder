@@ -451,12 +451,18 @@ const Graphics = (() => {
     s += `<line x1="${endX + 4}" y1="${yForPos(8) + 14}" x2="${endX + 4}" y2="${yForPos(0) - 14}" stroke="${lineColor}" stroke-width="3"/>`;
 
     // ── Precompute beam groups ──────────────────────────────────────────
+    // Split consecutive eighth notes into groups of at most 4
     const beamGroups = [];
     let grpStart = -1;
     for (let i = 0; i < notes.length; i++) {
       const d = notes[i].dur || 'q';
       if (d === '8') {
         if (grpStart === -1) grpStart = i;
+        // Close group when we hit 4 notes
+        if (i - grpStart === 3) {
+          beamGroups.push({ start: grpStart, end: i });
+          grpStart = -1;
+        }
       } else {
         if (grpStart !== -1 && i - grpStart >= 2) beamGroups.push({ start: grpStart, end: i - 1 });
         grpStart = -1;

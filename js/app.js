@@ -1048,11 +1048,11 @@ function runSongPlayback(inst, lesson) {
 
     // Play note
     const note = notes[i];
-    const durMs = note.dur === 'h' ? 0.9 : note.dur === 'w' ? 1.6 : 0.45;
+    const durMs = note.dur === 'h' ? 0.9 : note.dur === 'w' ? 1.6 : note.dur === '8' ? 0.22 : 0.45;
     AudioEngine.playInstrumentNote(note.freq, inst.fingeringType, durMs);
 
-    // Advance — half notes get 2 beats, whole notes 4
-    const beats = note.dur === 'h' ? 2 : note.dur === 'w' ? 4 : 1;
+    // Advance — half notes get 2 beats, whole notes 4, eighth notes 0.5
+    const beats = note.dur === 'h' ? 2 : note.dur === 'w' ? 4 : note.dur === '8' ? 0.5 : 1;
     APP.songPlayback.timer = setTimeout(() => step(i + 1), msPerBeat * beats);
   }
 
