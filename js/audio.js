@@ -117,73 +117,61 @@ const AudioEngine = (() => {
   }
 
   // ── PIANO CHORD ─────────────────────────────────────────────────────────
-  // Warm piano tone with hammer attack, arpeggiated (notes roll in sequence).
+  // FM synthesis piano — carrier + modulator creates bell/piano-like tone.
   function playPianoChord(freqs, duration = 1.1) {
     const c = getCtx();
-    const t0 = c.currentTime + 0.005;
-    const master = c.createGain();
+    const t0 = c.currentTime + 0.003;
+    const out = c.createGain();
+    out.connect(c.destination);
 
-    const lp = c.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.setValueAtTime(3500, t0);
-    lp.frequency.exponentialRampToValueAtTime(900, t0 + 0.4);
-    lp.Q.value = 0.5;
-    master.connect(lp);
-    lp.connect(c.destination);
-
-    const g = master.gain;
-    g.setValueAtTime(0.0001, t0);
-    g.exponentialRampToValueAtTime(0.45, t0 + 0.003);
-    g.exponentialRampToValueAtTime(0.15, t0 + 0.18);
-    g.exponentialRampToValueAtTime(0.07, t0 + 0.6);
-    g.setValueAtTime(0.07, t0 + duration - 0.2);
-    g.exponentialRampToValueAtTime(0.0001, t0 + duration + 0.1);
+    const reverb = c.createConvolver();
+    const reverbLen = c.sampleRate * 0.8;
+    const reverbBuf = c.createBuffer(2, reverbLen, c.sampleRate);
+    for (var ch = 0; ch < 2; ch++) {
+      var chData = reverbBuf.getChannelData(ch);
+      for (var i = 0; i < reverbLen; i++) {
+        chData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (c.sampleRate * 0.15));
+      }
+    }
+    reverb.buffer = reverbBuf;
+    var reverbMix = c.createGain();
+    reverbMix.gain.value = 0.15;
+    out.connect(reverb);
+    reverb.connect(reverbMix).connect(c.destination);
 
     freqs.forEach(function(freq, fi) {
-      const arpDelay = 0.055 * fi;
-      const t1 = t0 + arpDelay;
-      const noteDur = duration - arpDelay;
+      var arpDelay = 0.055 * fi;
+      var t1 = t0 + arpDelay;
+      var noteDur = Math.max(duration - arpDelay, 0.2);
+      var harmonic = freq * 2.76;
 
-      const osc = c.createOscillator();
-      osc.type = 'triangle';
-      osc.frequency.value = freq;
-      const g1 = c.createGain();
-      g1.gain.value = 0.8 / freqs.length;
-      osc.connect(g1).connect(master);
-      osc.start(t1);
-      osc.stop(t1 + noteDur + 0.3);
+      var mod = c.createOscillator();
+      mod.type = 'sine';
+      mod.frequency.value = harmonic;
+      var modGain = c.createGain();
+      modGain.gain.setValueAtTime(800, t1);
+      modGain.gain.exponentialRampToValueAtTime(0.001, t1 + 0.03);
 
-      const osc2 = c.createOscillator();
-      osc2.type = 'sine';
-      osc2.frequency.value = freq * 2;
-      const g2 = c.createGain();
-      g2.gain.value = 0.12 / freqs.length;
-      osc2.connect(g2).connect(master);
-      osc2.start(t1);
-      osc2.stop(t1 + noteDur + 0.2);
+      var carr = c.createOscillator();
+      carr.type = 'sine';
+      carr.frequency.value = freq;
+      mod.connect(modGain);
+      modGain.connect(carr.frequency);
 
-      const osc3 = c.createOscillator();
-      osc3.type = 'sine';
-      osc3.frequency.value = freq * 1.001;
-      const g3 = c.createGain();
-      g3.gain.value = 0.25 / freqs.length;
-      osc3.connect(g3).connect(master);
-      osc3.start(t1);
-      osc3.stop(t1 + noteDur + 0.3);
+      var g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t1);
+      g.gain.exponentialRampToValueAtTime(0.35 / freqs.length, t1 + 0.002);
+      g.gain.exponentialRampToValueAtTime(0.10 / freqs.length, t1 + 0.12);
+      g.gain.exponentialRampToValueAtTime(0.04 / freqs.length, t1 + 0.5);
+      g.gain.setValueAtTime(0.04 / freqs.length, t1 + noteDur - 0.05);
+      g.gain.exponentialRampToValueAtTime(0.0001, t1 + noteDur + 0.05);
+
+      carr.connect(g).connect(out);
+      carr.start(t1);
+      carr.stop(t1 + noteDur + 0.1);
+      mod.start(t1);
+      mod.stop(t1 + noteDur + 0.1);
     });
-
-    const noiseLen = Math.max(Math.floor(c.sampleRate * 0.04), 128);
-    const noiseBuf = c.createBuffer(1, noiseLen, c.sampleRate);
-    const nd = noiseBuf.getChannelData(0);
-    for (let i = 0; i < nd.length; i++) nd[i] = (Math.random() * 2 - 1) * 0.3;
-    const noise = c.createBufferSource();
-    noise.buffer = noiseBuf;
-    const noiseG = c.createGain();
-    noiseG.gain.setValueAtTime(0.10, t0);
-    noiseG.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.03);
-    noise.connect(noiseG).connect(master);
-    noise.start(t0);
-    noise.stop(t0 + 0.05);
   }
 
   // ── SHORT NOTE (for sight-reading / rapid playback) ─────────────────────
