@@ -25,35 +25,44 @@ const AudioEngine = (() => {
   }
 
   // ── RECORDER VOICE ──────────────────────────────────────────────────────
-  // Richer tone: multiple harmonics, subtle pitch wobble, register-adapted timbre.
+  // Warmer, fuller tone: fundamental dominates; gentle low-pass tames
+  // piercing highs; richer partial mix; more breath; natural vibrato.
   function playRecorder(freq, duration = 1.1) {
     const c = getCtx();
     const t0 = c.currentTime + 0.025;
     const out = c.createGain();
     out.connect(c.destination);
 
-    // Pitch wobble (subtle vibrato)
+    // Gentle low-pass filter to reduce piercing highs
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = Math.min(freq * 6, 5000);
+    lp.Q.value = 0.5;
+    out.connect(lp);
+    lp.connect(c.destination);
+    // disconnect the direct out→destination to route through filter
+    out.disconnect(c.destination);
+
+    // Vibrato — slower, deeper
     const vibrato = c.createOscillator();
     vibrato.type = 'sine';
-    vibrato.frequency.value = 5.5;
+    vibrato.frequency.value = 4.8;
     const vibratoGain = c.createGain();
-    vibratoGain.gain.value = 0.4;
+    vibratoGain.gain.value = 1.2;
     vibrato.connect(vibratoGain);
 
-    // Fundamental with vibrato
+    // Fundamental — triangle wave for warmth
     const osc1 = c.createOscillator();
-    osc1.type = 'sine';
+    osc1.type = 'triangle';
     osc1.frequency.value = freq;
     vibratoGain.connect(osc1.frequency);
 
-    // Harmonics with register-adapted mix
+    // Harmonics — quieter, only 2nd partial, no piercing upper partials
     const isLow = freq < 400;
     const partials = [
-      { mult: 2, type: 'triangle', gain: isLow ? 0.18 : 0.10 },
-      { mult: 3, type: 'sine',     gain: isLow ? 0.06 : 0.04 },
-      { mult: 4, type: 'triangle', gain: isLow ? 0.04 : 0.02 },
+      { mult: 2, type: 'sine', gain: isLow ? 0.08 : 0.05 },
     ];
-    const harmNodes = partials.map(p => {
+    partials.forEach(p => {
       const o = c.createOscillator();
       o.type = p.type;
       o.frequency.value = freq * p.mult;
@@ -62,27 +71,26 @@ const AudioEngine = (() => {
       o.connect(g).connect(out);
       o.start(t0);
       o.stop(t0 + duration + 0.12);
-      return o;
     });
 
-    // Breath noise — bandpassed around the fundamental
-    const noiseLen = Math.min(c.sampleRate * duration * 0.7, c.sampleRate * 0.8);
+    // Breath noise — more presence, lower cutoff
+    const noiseLen = Math.min(c.sampleRate * duration, c.sampleRate);
     const noiseBuf = c.createBuffer(1, Math.max(noiseLen, 128), c.sampleRate);
     const data = noiseBuf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.6;
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.5;
     const noise = c.createBufferSource();
     noise.buffer = noiseBuf;
     noise.loop = true;
     const noiseBP = c.createBiquadFilter();
     noiseBP.type = 'bandpass';
-    noiseBP.frequency.value = freq * (isLow ? 1.8 : 1.3);
-    noiseBP.Q.value = 0.8;
+    noiseBP.frequency.value = freq * 1.5;
+    noiseBP.Q.value = 0.6;
     const noiseGain = c.createGain();
-    noiseGain.gain.value = isLow ? 0.025 : 0.03;
+    noiseGain.gain.value = isLow ? 0.04 : 0.05;
     noise.connect(noiseBP).connect(noiseGain).connect(out);
 
-    // Apply master envelope
-    applyEnvelope(out, t0, 0.05, 0.10, 0.60, t0 + duration - 0.20, 0.20, 0.80);
+    // Master envelope — slower attack, gentler release
+    applyEnvelope(out, t0, 0.06, 0.12, 0.55, t0 + duration - 0.15, 0.25, 0.75);
 
     osc1.start(t0);
     osc1.stop(t0 + duration + 0.12);

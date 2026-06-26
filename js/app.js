@@ -1071,7 +1071,11 @@ function runSongPlayback(inst, lesson) {
           ellipse.setAttribute('fill', '#FFD166');
           ellipse.setAttribute('stroke', '#FFD166');
         }
-        g.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        // Scroll container to keep the current note visible
+        if (container) {
+          const targetLeft = g.offsetLeft - container.offsetWidth * 0.3;
+          container.scrollBy({ left: targetLeft - container.scrollLeft, behavior: 'smooth' });
+        }
       }
     }
 
