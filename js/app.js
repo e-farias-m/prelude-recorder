@@ -1046,107 +1046,86 @@ function runSongPlayback(inst, lesson) {
   const container = document.getElementById('song-score-container');
   const accentColor = inst.accentColor;
 
-  var pianoChords = lesson.pianoChords || [];
-  var currentChord = null;
+  var accompData = lesson.accompaniment || null;
+  var hasAccomp = !!accompData;
 
-  // Stop any previous accompaniment source
+  // Stop any previous accompaniment
   if (APP.accompSource) {
     try { APP.accompSource.stop(); } catch(e) {}
     APP.accompSource = null;
   }
 
-  // ── Accompaniment MP3 ──────────────────────────────────────────────────
-  var accompData = lesson.accompaniment || null;
-
-  function startAccompaniment(startTime) {
-    if (!accompData) return;
-    var recordedBPM = accompData.bpm || 120;
+  function kickoff(accompBuffer) {
+    var recordedBPM = accompData ? accompData.bpm : 120;
     var currentBPM = 125 * APP.songSpeed;
     var rate = currentBPM / recordedBPM;
+    var c = AudioEngine.getContext();
+
+    var audioStart = c.currentTime + 0.3;
+    if (accompBuffer) {
+      APP.accompSource = AudioEngine.playBuffer(accompBuffer, rate, audioStart);
+    }
+
+    function step(i) {
+      if (i >= notes.length) {
+        APP.songPlayback.active = false;
+        APP.songPlayback.finished = true;
+        if (APP.accompSource) { try { APP.accompSource.stop(); } catch(e) {} APP.accompSource = null; }
+        render();
+        return;
+      }
+
+      // Clear previous highlight
+      if (container) {
+        container.querySelectorAll('[data-note-index]').forEach(g => {
+          const idx = parseInt(g.getAttribute('data-note-index'));
+          const el = g.querySelector('ellipse');
+          if (!el) return;
+          if (filled[idx]) {
+            el.setAttribute('fill', accentColor);
+            el.setAttribute('stroke', accentColor);
+          } else {
+            el.setAttribute('fill', 'none');
+            el.setAttribute('stroke', accentColor);
+          }
+        });
+      }
+
+      // Highlight current note
+      if (container) {
+        const g = container.querySelector(`[data-note-index="${i}"]`);
+        if (g) {
+          const ellipse = g.querySelector('ellipse');
+          if (ellipse) {
+            ellipse.setAttribute('fill', '#FFD166');
+            ellipse.setAttribute('stroke', '#FFD166');
+          }
+          if (container) {
+            const targetLeft = g.offsetLeft - container.offsetWidth * 0.3;
+            container.scrollBy({ left: targetLeft - container.scrollLeft, behavior: 'smooth' });
+          }
+        }
+      }
+
+      // Don't play any synth sounds — the MP3 has everything
+      const note = notes[i];
+
+      // Advance — half notes get 2 beats, whole notes 4, eighth notes 0.5
+      const beats = note.dur === 'h' ? 2 : note.dur === 'w' ? 4 : note.dur === '8' ? 0.5 : 1;
+      APP.songPlayback.timer = setTimeout(() => step(i + 1), msPerBeat * beats);
+    }
+
+    // Start everything together
+    APP.songPlayback.timer = setTimeout(() => step(0), 300);
+  }
+
+  if (hasAccomp) {
     AudioEngine.fetchAndDecode(accompData.url, function(buf) {
-      if (!buf) return;
-      APP.accompSource = AudioEngine.playBuffer(buf, rate, startTime);
+      kickoff(buf);
     });
+  } else {
+    kickoff(null);
   }
-
-  function stopAccompaniment() {
-    if (APP.accompSource) {
-      try { APP.accompSource.stop(); } catch(e) {}
-      APP.accompSource = null;
-    }
-  }
-
-  function step(i) {
-    if (i >= notes.length) {
-      APP.songPlayback.active = false;
-      APP.songPlayback.finished = true;
-      render();
-      return;
-    }
-
-    // Clear previous highlight
-    if (container) {
-      container.querySelectorAll('[data-note-index]').forEach(g => {
-        const idx = parseInt(g.getAttribute('data-note-index'));
-        const el = g.querySelector('ellipse');
-        if (!el) return;
-        if (filled[idx]) {
-          el.setAttribute('fill', accentColor);
-          el.setAttribute('stroke', accentColor);
-        } else {
-          el.setAttribute('fill', 'none');
-          el.setAttribute('stroke', accentColor);
-        }
-      });
-    }
-
-    // Highlight current note
-    if (container) {
-      const g = container.querySelector(`[data-note-index="${i}"]`);
-      if (g) {
-        const ellipse = g.querySelector('ellipse');
-        if (ellipse) {
-          ellipse.setAttribute('fill', '#FFD166');
-          ellipse.setAttribute('stroke', '#FFD166');
-        }
-        // Scroll container to keep the current note visible
-        if (container) {
-          const targetLeft = g.offsetLeft - container.offsetWidth * 0.3;
-          container.scrollBy({ left: targetLeft - container.scrollLeft, behavior: 'smooth' });
-        }
-      }
-    }
-
-    // Play recorder at one octave lower
-    const note = notes[i];
-    const durMs = note.dur === 'h' ? 0.9 : note.dur === 'w' ? 1.6 : note.dur === '8' ? 0.22 : 0.45;
-    AudioEngine.playInstrumentNote(note.freq / 2, inst.fingeringType, durMs);
-
-    // Play piano chord underneath (sustains until next chord change)
-    var chordName = pianoChords[i];
-    if (chordName && chordName !== currentChord) {
-      var chordDur = 0;
-      for (var j = i; j < pianoChords.length; j++) {
-        if (j > i && pianoChords[j] && pianoChords[j] !== chordName) break;
-        var bv = notes[j].dur === 'h' ? 2 : notes[j].dur === 'w' ? 4 : notes[j].dur === '8' ? 0.5 : 1;
-        chordDur += bv * msPerBeat;
-      }
-      chordDur = Math.max(chordDur, durMs * 1000);
-      var freqs = CHORD_FREQS[chordName];
-      if (freqs) AudioEngine.playPianoChord(freqs, chordDur / 1000 + 0.3);
-      currentChord = chordName;
-    }
-
-    // Advance — half notes get 2 beats, whole notes 4, eighth notes 0.5
-    const beats = note.dur === 'h' ? 2 : note.dur === 'w' ? 4 : note.dur === '8' ? 0.5 : 1;
-    APP.songPlayback.timer = setTimeout(() => step(i + 1), msPerBeat * beats);
-  }
-
-  // Start after a short pre-count
-  APP.songPlayback.timer = setTimeout(() => {
-    startAccompaniment();
-    step(0);
-  }, 300);
 }
 
 // ── EVENT HANDLING ─────────────────────────────────────────────────────
