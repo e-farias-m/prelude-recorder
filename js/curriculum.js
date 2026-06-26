@@ -69,7 +69,7 @@ const CURRICULUM = {
         prompt: 'Step through each note of the melody, then play along!',
         keySig: 1, timeSig: { num: 4, den: 4 },
         noteIds: ['sr-1', 'sr-2', 'sr-3', 'sr-1', 'sr-2', 'sr-3', 'sr-3', 'sr-3', 'sr-3', 'sr-3', 'sr-2', 'sr-2', 'sr-2', 'sr-2', 'sr-1', 'sr-2', 'sr-3'],
-        durations: ['q', 'q', 'h', 'q', 'q', 'h', '8', '8', '8', '8', '8', '8', '8', '8', 'q', 'q', 'h'],
+        durations: ['h', 'h', 'w', 'h', 'h', 'w', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'h', 'h', 'w'],
       },
       {
         id: 'sr-song-2', type: 'song',
@@ -302,7 +302,7 @@ const CURRICULUM = {
         prompt: 'Step through each note. This melody works on any recorder!',
         keySig: 1, timeSig: { num: 4, den: 4 },
         noteIds: ['ar-1', 'ar-2', 'ar-3', 'ar-1', 'ar-2', 'ar-3', 'ar-3', 'ar-3', 'ar-3', 'ar-3', 'ar-2', 'ar-2', 'ar-2', 'ar-2', 'ar-1', 'ar-2', 'ar-3'],
-        durations: ['q', 'q', 'h', 'q', 'q', 'h', '8', '8', '8', '8', '8', '8', '8', '8', 'q', 'q', 'h'],
+        durations: ['h', 'h', 'w', 'h', 'h', 'w', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'h', 'h', 'w'],
       },
       {
         id: 'ar-4', noteName: 'B', octave: 3, staffStep: -10, accidental: null, freq: 246.94,
@@ -467,7 +467,7 @@ const CURRICULUM = {
         prompt: 'The same melody as the soprano, but on the larger tenor! Step through it slowly.',
         keySig: 1, timeSig: { num: 4, den: 4 },
         noteIds: ['tn-1', 'tn-2', 'tn-3', 'tn-1', 'tn-2', 'tn-3', 'tn-3', 'tn-3', 'tn-3', 'tn-3', 'tn-2', 'tn-2', 'tn-2', 'tn-2', 'tn-1', 'tn-2', 'tn-3'],
-        durations: ['q', 'q', 'h', 'q', 'q', 'h', '8', '8', '8', '8', '8', '8', '8', '8', 'q', 'q', 'h'],
+        durations: ['h', 'h', 'w', 'h', 'h', 'w', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'h', 'h', 'w'],
       },
       {
         id: 'tn-4', noteName: 'E', octave: 3, staffStep: -7, accidental: null, freq: 164.81,
@@ -620,7 +620,7 @@ const CURRICULUM = {
         prompt: 'Step through the melody slowly. The bass needs lots of air!',
         keySig: 1, timeSig: { num: 4, den: 4 },
         noteIds: ['br-1', 'br-2', 'br-3', 'br-1', 'br-2', 'br-3', 'br-3', 'br-3', 'br-3', 'br-3', 'br-2', 'br-2', 'br-2', 'br-2', 'br-1', 'br-2', 'br-3'],
-        durations: ['q', 'q', 'h', 'q', 'q', 'h', '8', '8', '8', '8', '8', '8', '8', '8', 'q', 'q', 'h'],
+        durations: ['h', 'h', 'w', 'h', 'h', 'w', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'h', 'h', 'w'],
       },
       {
         id: 'br-4', noteName: 'B', octave: 2, staffStep: 2, accidental: null, freq: 123.47,
