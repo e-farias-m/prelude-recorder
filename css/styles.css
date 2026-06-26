@@ -1547,6 +1547,40 @@ button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2
 }
 }
 
+/* ─═ COUNT-IN OVERLAY ─────────────────────────────────────────────────── */
+.count-in-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(14,13,28,0.85);
+  z-index: 10;
+}
+.count-in-beats {
+  display: flex;
+  gap: 20px;
+}
+.count-in-beats span {
+  font-size: 48px;
+  font-weight: 700;
+  color: #3C3B5A;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid #3C3B5A;
+  transition: all 0.1s;
+}
+.count-in-beats span.active {
+  color: #FFD166;
+  border-color: #FFD166;
+  background: rgba(255,209,102,0.12);
+  transform: scale(1.15);
+}
+
 /* ─═ ANALYTICS SCREEN ─────────────────────────────────────────────────── */
 .analytics-screen {
   flex-direction: column;

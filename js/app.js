@@ -1071,6 +1071,7 @@ function runSongPlayback(inst, lesson) {
         APP.songPlayback.active = false;
         APP.songPlayback.finished = true;
         if (APP.accompSource) { try { APP.accompSource.stop(); } catch(e) {} APP.accompSource = null; }
+        if (APP._countInOverlay) { APP._countInOverlay.remove(); APP._countInOverlay = null; }
         render();
         return;
       }
@@ -1115,8 +1116,49 @@ function runSongPlayback(inst, lesson) {
       APP.songPlayback.timer = setTimeout(() => step(i + 1), msPerBeat * beats);
     }
 
-    // Start everything together
-    APP.songPlayback.timer = setTimeout(() => step(0), 300);
+    // ── Count-in: 4 beats at current tempo ────────────────────────────
+    var beatMs = 480 / APP.songSpeed;
+    var countInBeats = 4;
+    var countInMs = countInBeats * beatMs;
+
+    var overlay = null;
+    if (container) {
+      overlay = document.createElement('div');
+      overlay.className = 'count-in-overlay';
+      overlay.innerHTML =
+        '<div class="count-in-beats">' +
+          '<span data-ci="1">1</span>' +
+          '<span data-ci="2">2</span>' +
+          '<span data-ci="3">3</span>' +
+          '<span data-ci="4">4</span>' +
+        '</div>';
+      container.parentNode.appendChild(overlay);
+    }
+    APP._countInOverlay = overlay;
+
+    // Schedule accompaniment to start right after count-in
+    var audioStart = c.currentTime + countInMs / 1000 + 0.05;
+    if (accompBuffer) {
+      APP.accompSource = AudioEngine.playBuffer(accompBuffer, rate, audioStart);
+    }
+
+    // Metronome clicks + highlight each beat
+    [1, 2, 3, 4].forEach(function(n, i) {
+      setTimeout(function() {
+        AudioEngine.playClick(n === 1);
+        if (overlay) {
+          var el = overlay.querySelector('[data-ci="' + n + '"]');
+          if (el) el.classList.add('active');
+        }
+      }, i * beatMs);
+    });
+
+    // Start step after count-in finishes
+    APP.songPlayback.timer = setTimeout(function() {
+      if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      APP._countInOverlay = null;
+      step(0);
+    }, countInMs + 50);
   }
 
   if (hasAccomp) {
@@ -1221,6 +1263,7 @@ function handleAction(action, el) {
       APP.reviewTotal = 0;
       if (APP.songPlayback && APP.songPlayback.timer) clearTimeout(APP.songPlayback.timer);
       APP.songPlayback = null;
+      if (APP._countInOverlay) { APP._countInOverlay.remove(); APP._countInOverlay = null; }
       if (APP.accompSource) { try { APP.accompSource.stop(); } catch(e) {} APP.accompSource = null; }
       APP.screen = 'map';
       render();
