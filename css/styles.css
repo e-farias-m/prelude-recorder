@@ -1559,6 +1559,14 @@ button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2
   font-size: 14px;
 }
 
+.import-link {
+  font-size: 11px;
+  color: #3C3B5A;
+  cursor: pointer;
+  user-select: none;
+}
+.import-link:hover { color: #5C5B7A; }
+
 /* ─═ ANALYTICS SCREEN ─────────────────────────────────────────────────── */
 .analytics-screen {
   flex-direction: column;

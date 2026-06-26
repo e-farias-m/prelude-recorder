@@ -457,9 +457,8 @@ function renderMapScreen() {
         <div class="map-unit-label">Unit 1 · First Notes</div>
         <div class="map-path">${nodes}</div>
         ${doneCount > 0 ? `<button class="btn btn-secondary game-launch-btn" data-action="open-game" style="margin-top:20px;width:100%">🎯 Sight Reading Challenge</button>` : ''}
-        <button class="btn btn-secondary game-launch-btn" data-action="import-song" style="margin-top:10px;width:100%">📥 Import Song (MusicXML)</button>
-        <input type="file" id="import-file-input" accept=".musicxml,.xml" style="display:none" data-action="import-file-chosen">
         <div id="imported-songs"></div>
+        <div style="margin-top:8px;text-align:center"><span class="import-link" data-action="import-song">import</span></div>
       </div>
     </div>`;
 }
@@ -1716,31 +1715,33 @@ function handleAction(action, el) {
 
     // ── MusicXML Import ──────────────────────────────────────────────
     case 'import-song': {
-      document.getElementById('import-file-input').click();
-      break;
-    }
-
-    case 'import-file-chosen': {
-      var file = el.files && el.files[0];
-      if (!file) break;
-      var reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          var song = parseMusicXML(e.target.result, APP.instrumentId);
-          if (!song.noteIds || song.noteIds.length === 0) {
-            showToast('No playable notes found in the MusicXML file.');
-            return;
+      var input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.musicxml,.xml';
+      input.style.display = 'none';
+      input.addEventListener('change', function() {
+        var file = input.files && input.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          try {
+            var song = parseMusicXML(ev.target.result, APP.instrumentId);
+            if (!song.noteIds || song.noteIds.length === 0) {
+              showToast('No playable notes found.');
+              return;
+            }
+            saveImportedSong(APP.instrumentId, song);
+            showToast('Imported "' + song.noteName + '" (' + song.noteIds.length + ' notes)');
+            render();
+          } catch(err) {
+            showToast('Error: ' + err.message);
           }
-          saveImportedSong(APP.instrumentId, song);
-          showToast('Imported "' + song.noteName + '" (' + song.noteIds.length + ' notes)');
-          el.value = '';
-          render();
-        } catch(err) {
-          showToast('Error importing: ' + err.message);
-          el.value = '';
-        }
-      };
-      reader.readAsText(file);
+        };
+        reader.readAsText(file);
+        input.remove();
+      });
+      document.body.appendChild(input);
+      input.click();
       break;
     }
 
