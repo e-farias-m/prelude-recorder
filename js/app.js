@@ -2,6 +2,14 @@
 // Application state machine and rendering for Prelude for Recorder.
 // Single delegated click listener drives all interaction via data-action.
 
+var CHORD_FREQS = {
+  'G':   [98.00, 123.47, 146.83],
+  'D7':  [73.42, 92.50, 110.00, 130.81],
+  'Am':  [110.00, 130.81, 164.81],
+  'C':   [65.41, 82.41, 98.00],
+  'G/B': [123.47, 146.83, 196.00]
+};
+
 const APP = {
   screen: 'select',
   instrumentId: null,
@@ -572,7 +580,7 @@ function renderSongPlayPhase(inst, lesson) {
           <span class="song-speed-label">${Math.round(APP.songSpeed * 100)}%</span>
           <button class="btn-speed" data-action="song-speed-up" ${playback.active ? 'disabled' : ''}>+</button>
         </div>
-        <button class="btn-export-musicxml" data-action="song-export-musicxml" ${playback.active ? 'disabled' : ''}>Export MusicXML</button>
+
       </div>
     </div>
     <div class="action-bar">
@@ -1038,6 +1046,9 @@ function runSongPlayback(inst, lesson) {
   const container = document.getElementById('song-score-container');
   const accentColor = inst.accentColor;
 
+  var pianoChords = lesson.pianoChords || [];
+  var currentChord = null;
+
   function step(i) {
     if (i >= notes.length) {
       APP.songPlayback.active = false;
@@ -1079,18 +1090,24 @@ function runSongPlayback(inst, lesson) {
       }
     }
 
-    // Play note (+ chord if present)
+    // Play recorder at one octave lower
     const note = notes[i];
     const durMs = note.dur === 'h' ? 0.9 : note.dur === 'w' ? 1.6 : note.dur === '8' ? 0.22 : 0.45;
-    const chordRefs = lesson && lesson.chordIds ? lesson.chordIds[i] || [] : [];
-    if (chordRefs.length > 0) {
-      const freqs = [note.freq].concat(chordRefs.map(function(id) {
-        var cn = findLessonById(APP.instrumentId, id);
-        return cn ? cn.freq : null;
-      }).filter(Boolean));
-      AudioEngine.playInstrumentChord(freqs, inst.fingeringType, durMs);
-    } else {
-      AudioEngine.playInstrumentNote(note.freq, inst.fingeringType, durMs);
+    AudioEngine.playInstrumentNote(note.freq / 2, inst.fingeringType, durMs);
+
+    // Play piano chord underneath (sustains until next chord change)
+    var chordName = pianoChords[i];
+    if (chordName && chordName !== currentChord) {
+      var chordDur = 0;
+      for (var j = i; j < pianoChords.length; j++) {
+        if (j > i && pianoChords[j] && pianoChords[j] !== chordName) break;
+        var bv = notes[j].dur === 'h' ? 2 : notes[j].dur === 'w' ? 4 : notes[j].dur === '8' ? 0.5 : 1;
+        chordDur += bv * msPerBeat;
+      }
+      chordDur = Math.max(chordDur, durMs * 1000);
+      var freqs = CHORD_FREQS[chordName];
+      if (freqs) AudioEngine.playPianoChord(freqs, chordDur / 1000 + 0.3);
+      currentChord = chordName;
     }
 
     // Advance — half notes get 2 beats, whole notes 4, eighth notes 0.5
@@ -1100,114 +1117,6 @@ function runSongPlayback(inst, lesson) {
 
   // Start after a short pre-count
   APP.songPlayback.timer = setTimeout(() => step(0), 300);
-}
-
-// ── MUSICXML EXPORT ───────────────────────────────────────────────────────
-function generateMusicXML(inst, song) {
-  const notes = song.noteIds.map(id => findLessonById(inst.id, id));
-  const durs = song.durations || song.noteIds.map(() => 'q');
-  const divisions = 4;
-  const durMap = { w: 16, h: 8, q: 4, '8': 2, '16': 1 };
-  const typeMap = { w: 'whole', h: 'half', q: 'quarter', '8': 'eighth', '16': '16th' };
-  const beatMap = { w: 4, h: 2, q: 1, '8': 0.5, '16': 0.25 };
-
-  const clefSign = inst.clef === 'bass' ? 'F' : 'G';
-  const clefLine = inst.clef === 'bass' ? 4 : 2;
-  const keySig = song.keySig || 0;
-  const ts = song.timeSig || { num: 4, den: 4 };
-  const bpm = ts.num;
-
-  // Group into measures by beat accumulation
-  const measures = [];
-  let meas = [];
-  let acc = 0;
-
-  for (let i = 0; i < notes.length; i++) {
-    const n = notes[i];
-    const d = durs[i];
-    if (!n) continue;
-    const beats = beatMap[d] || 1;
-    meas.push({ note: n, dur: d });
-    acc += beats;
-
-    const nextBeats = i + 1 < notes.length ? (beatMap[durs[i + 1]] || 1) : 0;
-    if (Math.abs(acc - bpm) < 0.01 || acc + nextBeats > bpm + 0.01) {
-      measures.push(meas);
-      meas = [];
-      acc = 0;
-    }
-  }
-  if (meas.length > 0) measures.push(meas);
-
-  // Build XML
-  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
-  xml += '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">\n';
-  xml += '<score-partwise version="4.0">\n';
-  xml += '  <part-list>\n';
-  xml += '    <score-part id="P1">\n';
-  xml += '      <part-name>' + escapeHtml(song.noteName) + '</part-name>\n';
-  xml += '    </score-part>\n';
-  xml += '  </part-list>\n';
-  xml += '  <part id="P1">\n';
-
-  measures.forEach((m, mi) => {
-    xml += '    <measure number="' + (mi + 1) + '">\n';
-
-    if (mi === 0) {
-      xml += '      <attributes>\n';
-      xml += '        <divisions>' + divisions + '</divisions>\n';
-      xml += '        <key>\n';
-      xml += '          <fifths>' + keySig + '</fifths>\n';
-      xml += '        </key>\n';
-      xml += '        <time>\n';
-      xml += '          <beats>' + ts.num + '</beats>\n';
-      xml += '          <beat-type>' + ts.den + '</beat-type>\n';
-      xml += '        </time>\n';
-      xml += '        <clef>\n';
-      xml += '          <sign>' + clefSign + '</sign>\n';
-      xml += '          <line>' + clefLine + '</line>\n';
-      xml += '        </clef>\n';
-      xml += '      </attributes>\n';
-    }
-
-    m.forEach(function(entry) {
-      var step = entry.note.noteName || 'C';
-      var octave = entry.note.octave || 4;
-      var alter = entry.note.accidental === 'sharp' ? 1 : entry.note.accidental === 'flat' ? -1 : null;
-      var durVal = durMap[entry.dur] || 4;
-      var typeVal = typeMap[entry.dur] || 'quarter';
-
-      xml += '      <note>\n';
-      xml += '        <pitch>\n';
-      xml += '          <step>' + step + '</step>\n';
-      if (alter !== null) {
-        xml += '          <alter>' + alter + '</alter>\n';
-      }
-      xml += '          <octave>' + octave + '</octave>\n';
-      xml += '        </pitch>\n';
-      xml += '        <duration>' + durVal + '</duration>\n';
-      xml += '        <type>' + typeVal + '</type>\n';
-      xml += '      </note>\n';
-    });
-
-    xml += '    </measure>\n';
-  });
-
-  xml += '  </part>\n';
-  xml += '</score-partwise>\n';
-  return xml;
-}
-
-function downloadMusicXML(xml, filename) {
-  var blob = new Blob([xml], { type: 'application/xml' });
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
 // ── EVENT HANDLING ─────────────────────────────────────────────────────
@@ -1293,14 +1202,6 @@ function handleAction(action, el) {
     case 'song-speed-up': {
       APP.songSpeed = Math.min(2.0, APP.songSpeed + 0.15);
       render();
-      break;
-    }
-
-    case 'song-export-musicxml': {
-      const lesson = getLesson(APP.instrumentId, APP.lessonIndex);
-      const xml = generateMusicXML(inst, lesson);
-      downloadMusicXML(xml, lesson.noteName.replace(/\s+/g, '-').toLowerCase() + '.musicxml');
-      showToast('MusicXML exported!');
       break;
     }
 

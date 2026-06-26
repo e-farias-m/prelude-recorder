@@ -116,6 +116,46 @@ const AudioEngine = (() => {
     osc.stop(t0 + 0.09);
   }
 
+  // ── PIANO CHORD ─────────────────────────────────────────────────────────
+  // Warm sustained piano tone for chord accompaniment.
+  function playPianoChord(freqs, duration = 1.1) {
+    const c = getCtx();
+    const t0 = c.currentTime + 0.01;
+    const master = c.createGain();
+    master.connect(c.destination);
+
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 2500;
+    lp.Q.value = 0.5;
+    master.connect(lp);
+    lp.connect(c.destination);
+    master.disconnect(c.destination);
+
+    applyEnvelope(master, t0, 0.005, 0.20, 0.25, t0 + duration - 0.25, 0.35, 0.35);
+
+    const n = freqs.length;
+    freqs.forEach(function(freq) {
+      const osc = c.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      const g = c.createGain();
+      g.gain.value = 0.9 / n;
+      osc.connect(g).connect(master);
+      osc.start(t0);
+      osc.stop(t0 + duration + 0.5);
+
+      const osc2 = c.createOscillator();
+      osc2.type = 'sine';
+      osc2.frequency.value = freq * 2;
+      const g2 = c.createGain();
+      g2.gain.value = 0.12 / n;
+      osc2.connect(g2).connect(master);
+      osc2.start(t0);
+      osc2.stop(t0 + duration + 0.5);
+    });
+  }
+
   // ── SHORT NOTE (for sight-reading / rapid playback) ─────────────────────
   function playShortNote(freq) {
     playRecorder(freq, 0.45);
@@ -134,5 +174,5 @@ const AudioEngine = (() => {
 
   function unlock() { getCtx(); }
 
-  return { playInstrumentNote, playInstrumentChord, playClick, playShortNote, unlock };
+  return { playInstrumentNote, playInstrumentChord, playPianoChord, playClick, playShortNote, unlock };
 })();

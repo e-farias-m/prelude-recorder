@@ -70,7 +70,7 @@ const CURRICULUM = {
         keySig: 1, timeSig: { num: 4, den: 4 },
         noteIds: ['sr-1', 'sr-2', 'sr-3', 'sr-1', 'sr-2', 'sr-3', 'sr-3', 'sr-3', 'sr-3', 'sr-3', 'sr-2', 'sr-2', 'sr-2', 'sr-2', 'sr-1', 'sr-2', 'sr-3'],
         durations: ['h', 'h', 'w', 'h', 'h', 'w', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'h', 'h', 'w'],
-        chordIds: [['sr-3','sr-1'],['sr-2'],['sr-3','sr-1'],['sr-3','sr-1'],['sr-2'],['sr-3','sr-1'],['sr-3','sr-1'],['sr-3','sr-1'],['sr-3','sr-1'],['sr-3','sr-1'],['sr-2'],['sr-2'],['sr-3','sr-1'],['sr-3'],['sr-3','sr-1'],['sr-2'],['sr-3','sr-1']],
+        pianoChords: ['G','D7','G','G','D7','G','G','G','G/B','G/B','Am','Am','G/B','C','G','D7','G'],
       },
       {
         id: 'sr-song-2', type: 'song',
@@ -304,7 +304,7 @@ const CURRICULUM = {
         keySig: 1, timeSig: { num: 4, den: 4 },
         noteIds: ['ar-1', 'ar-2', 'ar-3', 'ar-1', 'ar-2', 'ar-3', 'ar-3', 'ar-3', 'ar-3', 'ar-3', 'ar-2', 'ar-2', 'ar-2', 'ar-2', 'ar-1', 'ar-2', 'ar-3'],
         durations: ['h', 'h', 'w', 'h', 'h', 'w', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'h', 'h', 'w'],
-        chordIds: [['ar-3','ar-1'],['ar-2'],['ar-3','ar-1'],['ar-3','ar-1'],['ar-2'],['ar-3','ar-1'],['ar-3','ar-1'],['ar-3','ar-1'],['ar-3','ar-1'],['ar-3','ar-1'],['ar-2'],['ar-2'],['ar-3','ar-1'],['ar-3'],['ar-3','ar-1'],['ar-2'],['ar-3','ar-1']],
+        pianoChords: ['G','D7','G','G','D7','G','G','G','G/B','G/B','Am','Am','G/B','C','G','D7','G'],
       },
       {
         id: 'ar-4', noteName: 'B', octave: 3, staffStep: -10, accidental: null, freq: 246.94,
@@ -470,7 +470,7 @@ const CURRICULUM = {
         keySig: 1, timeSig: { num: 4, den: 4 },
         noteIds: ['tn-1', 'tn-2', 'tn-3', 'tn-1', 'tn-2', 'tn-3', 'tn-3', 'tn-3', 'tn-3', 'tn-3', 'tn-2', 'tn-2', 'tn-2', 'tn-2', 'tn-1', 'tn-2', 'tn-3'],
         durations: ['h', 'h', 'w', 'h', 'h', 'w', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'h', 'h', 'w'],
-        chordIds: [['tn-3','tn-1'],['tn-2'],['tn-3','tn-1'],['tn-3','tn-1'],['tn-2'],['tn-3','tn-1'],['tn-3','tn-1'],['tn-3','tn-1'],['tn-3','tn-1'],['tn-3','tn-1'],['tn-2'],['tn-2'],['tn-3','tn-1'],['tn-3'],['tn-3','tn-1'],['tn-2'],['tn-3','tn-1']],
+        pianoChords: ['G','D7','G','G','D7','G','G','G','G/B','G/B','Am','Am','G/B','C','G','D7','G'],
       },
       {
         id: 'tn-4', noteName: 'E', octave: 3, staffStep: -7, accidental: null, freq: 164.81,
@@ -624,7 +624,7 @@ const CURRICULUM = {
         keySig: 1, timeSig: { num: 4, den: 4 },
         noteIds: ['br-1', 'br-2', 'br-3', 'br-1', 'br-2', 'br-3', 'br-3', 'br-3', 'br-3', 'br-3', 'br-2', 'br-2', 'br-2', 'br-2', 'br-1', 'br-2', 'br-3'],
         durations: ['h', 'h', 'w', 'h', 'h', 'w', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'h', 'h', 'w'],
-        chordIds: [['br-3','br-1'],['br-2'],['br-3','br-1'],['br-3','br-1'],['br-2'],['br-3','br-1'],['br-3','br-1'],['br-3','br-1'],['br-3','br-1'],['br-3','br-1'],['br-2'],['br-2'],['br-3','br-1'],['br-3'],['br-3','br-1'],['br-2'],['br-3','br-1']],
+        pianoChords: ['G','D7','G','G','D7','G','G','G','G/B','G/B','Am','Am','G/B','C','G','D7','G'],
       },
       {
         id: 'br-4', noteName: 'B', octave: 2, staffStep: 2, accidental: null, freq: 123.47,

@@ -1040,19 +1040,6 @@ button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2
   font-variant-numeric: tabular-nums;
 }
 
-.btn-export-musicxml {
-  font-size: 12px;
-  padding: 4px 10px;
-  white-space: nowrap;
-  background: transparent;
-  border: 1px solid #524F70;
-  border-radius: 6px;
-  color: #A29EC8;
-  cursor: pointer;
-}
-.btn-export-musicxml:hover:not(:disabled) { background: var(--bg-highlight); color: #E0DDFF; }
-.btn-export-musicxml:disabled { opacity: 0.35; cursor: default; }
-
 /* ── NAME PROMPT OVERLAY ──────────────────────────────────────────────────── */
 .name-overlay {
   position: fixed;
