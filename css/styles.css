@@ -1567,6 +1567,15 @@ button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2
 }
 .import-link:hover { color: #5C5B7A; }
 
+.map-footer-import {
+  font-size: 10px;
+  color: #2A2948;
+  text-align: center;
+  padding: 4px 0 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
 /* ─═ ANALYTICS SCREEN ─────────────────────────────────────────────────── */
 .analytics-screen {
   flex-direction: column;

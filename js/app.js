@@ -457,9 +457,8 @@ function renderMapScreen() {
         <div class="map-unit-label">Unit 1 · First Notes</div>
         <div class="map-path">${nodes}</div>
         ${doneCount > 0 ? `<button class="btn btn-secondary game-launch-btn" data-action="open-game" style="margin-top:20px;width:100%">🎯 Sight Reading Challenge</button>` : ''}
-        <div id="imported-songs"></div>
-        <div style="margin-top:8px;text-align:center"><span class="import-link" data-action="import-song">import</span></div>
       </div>
+      <div class="map-footer-import" data-action="import-song">import</div>
     </div>`;
 }
 
@@ -914,10 +913,8 @@ function nextGameNote() {
 function render() {
   const app = document.getElementById('app');
   if (APP.screen === 'select') app.innerHTML = renderSelectScreen();
-  else if (APP.screen === 'map') {
-    app.innerHTML = renderMapScreen();
-    displayImportedSongs();
-  } else if (APP.screen === 'lesson') app.innerHTML = renderLessonScreen();
+  else if (APP.screen === 'map') app.innerHTML = renderMapScreen();
+  else if (APP.screen === 'lesson') app.innerHTML = renderLessonScreen();
   else if (APP.screen === 'settings') app.innerHTML = renderSettingsScreen();
   else if (APP.screen === 'analytics') app.innerHTML = renderAnalyticsScreen();
   else if (APP.screen === 'game') app.innerHTML = renderGameScreen();
@@ -1210,18 +1207,90 @@ function downloadMusicXML(xml, filename) {
 }
 
 // ── MUSICXML IMPORT ───────────────────────────────────────────────────────
-var IMPORTED_SONGS_KEY = 'preludeRecorderImportedSongs';
+// Format parsed song as a ready-to-paste curriculum snippet
+function formatSongSnippet(song, instrumentId) {
+  var inst = getInstrument(instrumentId);
+  var prefix = inst.id.split('-')[0]; // 'sr', 'ar', etc.
 
-function getImportedSongs() {
-  try { return JSON.parse(localStorage.getItem(IMPORTED_SONGS_KEY)) || {}; }
-  catch(e) { return {}; }
+  // Collect unique prerequisite IDs from noteIds (and chordIds)
+  var prereqs = {};
+  song.noteIds.forEach(function(id) { prereqs[id] = true; });
+  (song.chordIds || []).forEach(function(ch) {
+    if (ch) ch.forEach(function(id) { prereqs[id] = true; });
+  });
+  var prereqArr = Object.keys(prereqs).sort();
+
+  var noteIdsStr = JSON.stringify(song.noteIds, null, 2)
+    .split('\n').join('\n        ');
+  var dursStr = JSON.stringify(song.durations, null, 2)
+    .split('\n').join('\n        ');
+
+  var chordStr = '';
+  if (song.chordIds && song.chordIds.some(function(ch) { return ch && ch.length > 0; })) {
+    var raw = JSON.stringify(song.chordIds, null, 2);
+    chordStr = ',\n        chordIds: ' + raw
+      .split('\n').join('\n        ');
+  }
+
+  return [
+    '    {',
+    "      id: '" + prefix + "-CHANGE_ME',",
+    "      type: 'song',",
+    "      noteName: '" + escapeHtml(song.noteName) + "',",
+    "      prerequisiteIds: " + JSON.stringify(prereqArr) + ",",
+    "      description: 'Imported from MusicXML',",
+    "      prompt: '',",
+    "      noteIds: " + noteIdsStr + ",",
+    "      durations: " + dursStr + ",",
+    "      keySig: " + (song.keySig || 0) + ",",
+    "      timeSig: { num: " + song.timeSig.num + ", den: " + song.timeSig.den + " }" + chordStr + ",",
+    '    },'
+  ].join('\n');
 }
 
-function saveImportedSong(instrumentId, song) {
-  var all = getImportedSongs();
-  if (!all[instrumentId]) all[instrumentId] = [];
-  all[instrumentId].push(song);
-  localStorage.setItem(IMPORTED_SONGS_KEY, JSON.stringify(all));
+function showImportModal(song, instrumentId) {
+  var snippet = formatSongSnippet(song, instrumentId);
+
+  var overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:100';
+
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#1C1B3E;border:1px solid #524F70;border-radius:12px;padding:20px;max-width:90vw;max-height:90vh;overflow:auto;font-family:monospace;font-size:12px;line-height:1.6;color:#E0DDFF';
+
+  var title = document.createElement('div');
+  title.textContent = 'Copy this snippet into curriculum.js';
+  title.style.cssText = 'font-size:16px;font-weight:bold;margin-bottom:12px;font-family:sans-serif';
+
+  var pre = document.createElement('pre');
+  pre.textContent = snippet;
+  pre.style.cssText = 'background:#0E0D1C;padding:16px;border-radius:8px;overflow:auto;white-space:pre;margin:0 0 12px 0';
+
+  var bar = document.createElement('div');
+  bar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+
+  var copyBtn = document.createElement('button');
+  copyBtn.textContent = 'Copy';
+  copyBtn.className = 'btn btn-primary';
+  copyBtn.onclick = function() {
+    navigator.clipboard.writeText(snippet).then(function() {
+      copyBtn.textContent = 'Copied!';
+      setTimeout(function() { copyBtn.textContent = 'Copy'; }, 1500);
+    });
+  };
+
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = 'Close';
+  closeBtn.className = 'btn btn-secondary';
+  closeBtn.onclick = function() { overlay.remove(); };
+
+  bar.appendChild(copyBtn);
+  bar.appendChild(closeBtn);
+  box.appendChild(title);
+  box.appendChild(pre);
+  box.appendChild(bar);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
 }
 
 // Convert note step/alter/octave to MIDI pitch number (written pitch)
@@ -1358,33 +1427,6 @@ function parseMusicXML(xmlText, instrumentId) {
     timeSig: { num: timeNum, den: timeDen },
     imported: true
   };
-}
-
-// Display imported songs on the map
-function displayImportedSongs() {
-  var container = document.getElementById('imported-songs');
-  if (!container) return;
-  var songs = getImportedSongs();
-  var list = songs[APP.instrumentId] || [];
-  if (list.length === 0) { container.innerHTML = ''; return; }
-
-  var html = '<div class="map-unit-label" style="margin-top:24px">Imported Songs</div>';
-  list.forEach(function(song, i) {
-    var id = '__imported__' + i;
-    var existing = document.querySelector('[data-imported-id="' + id + '"]');
-    var isCompleted = false;
-    if (existing) isCompleted = existing.classList.contains('done');
-
-    var stateCls = isCompleted ? 'done' : 'available';
-    var starHtml = isCompleted ? '<span class="map-node-star">★★★</span>' : '';
-    html += '<div class="map-node-wrap" style="margin-top:8px">';
-    html += '<div class="map-node ' + stateCls + '" data-action="open-imported-song" data-imported-index="' + i + '">';
-    html += '<span class="map-node-note">' + escapeHtml(song.noteName) + '</span>' + starHtml;
-    html += '</div>';
-    html += '<div class="map-node-label">' + escapeHtml(song.noteName) + '</div>';
-    html += '</div>';
-  });
-  container.innerHTML = html;
 }
 
 // ── EVENT HANDLING ─────────────────────────────────────────────────────
@@ -1730,9 +1772,8 @@ function handleAction(action, el) {
               showToast('No playable notes found.');
               return;
             }
-            saveImportedSong(APP.instrumentId, song);
-            showToast('Imported "' + song.noteName + '" (' + song.noteIds.length + ' notes)');
-            render();
+            showToast('Parsed "' + song.noteName + '" (' + song.noteIds.length + ' notes)');
+            showImportModal(song, APP.instrumentId);
           } catch(err) {
             showToast('Error: ' + err.message);
           }
@@ -1742,19 +1783,6 @@ function handleAction(action, el) {
       });
       document.body.appendChild(input);
       input.click();
-      break;
-    }
-
-    case 'open-imported-song': {
-      var idx = parseInt(el.dataset.importedIndex);
-      var songs = getImportedSongs();
-      var list = songs[APP.instrumentId] || [];
-      var song = list[idx];
-      if (!song) { showToast('Song not found.'); break; }
-      APP.importedSong = song;
-      APP.phase = 'present';
-      APP.screen = 'lesson';
-      render();
       break;
     }
 
@@ -1824,3 +1852,9 @@ document.addEventListener('input', (e) => {
 loadProgress();
 if (!getStudentName()) showNamePrompt();
 render();
+
+// Expose import for developer console use
+window.importSong = function() {
+  var el = document.querySelector('[data-action="import-song"]');
+  if (el) el.click();
+};
