@@ -1049,6 +1049,33 @@ function runSongPlayback(inst, lesson) {
   var pianoChords = lesson.pianoChords || [];
   var currentChord = null;
 
+  // Stop any previous accompaniment source
+  if (APP.accompSource) {
+    try { APP.accompSource.stop(); } catch(e) {}
+    APP.accompSource = null;
+  }
+
+  // ── Accompaniment MP3 ──────────────────────────────────────────────────
+  var accompData = lesson.accompaniment || null;
+
+  function startAccompaniment(startTime) {
+    if (!accompData) return;
+    var recordedBPM = accompData.bpm || 120;
+    var currentBPM = 125 * APP.songSpeed;
+    var rate = currentBPM / recordedBPM;
+    AudioEngine.fetchAndDecode(accompData.url, function(buf) {
+      if (!buf) return;
+      APP.accompSource = AudioEngine.playBuffer(buf, rate, startTime);
+    });
+  }
+
+  function stopAccompaniment() {
+    if (APP.accompSource) {
+      try { APP.accompSource.stop(); } catch(e) {}
+      APP.accompSource = null;
+    }
+  }
+
   function step(i) {
     if (i >= notes.length) {
       APP.songPlayback.active = false;
@@ -1116,7 +1143,10 @@ function runSongPlayback(inst, lesson) {
   }
 
   // Start after a short pre-count
-  APP.songPlayback.timer = setTimeout(() => step(0), 300);
+  APP.songPlayback.timer = setTimeout(() => {
+    startAccompaniment();
+    step(0);
+  }, 300);
 }
 
 // ── EVENT HANDLING ─────────────────────────────────────────────────────
@@ -1212,7 +1242,7 @@ function handleAction(action, el) {
       APP.reviewTotal = 0;
       if (APP.songPlayback && APP.songPlayback.timer) clearTimeout(APP.songPlayback.timer);
       APP.songPlayback = null;
-      APP.importedSong = null;
+      if (APP.accompSource) { try { APP.accompSource.stop(); } catch(e) {} APP.accompSource = null; }
       APP.screen = 'map';
       render();
       break;

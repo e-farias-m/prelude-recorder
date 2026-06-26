@@ -179,6 +179,38 @@ const AudioEngine = (() => {
     playRecorder(freq, 0.45);
   }
 
+  // ── DECODED AUDIO PLAYBACK (for MP3 accompaniment) ─────────────────────
+  // Loads an MP3/audio file once, caches the decoded buffer, and plays
+  // it with pitch-compensated speed control via playbackRate + detune.
+  var decodedCache = {};
+
+  function fetchAndDecode(url, callback) {
+    if (decodedCache[url]) { callback(decodedCache[url]); return; }
+    var c = getCtx();
+    fetch(url)
+      .then(function(r) { return r.arrayBuffer(); })
+      .then(function(buf) { return c.decodeAudioData(buf); })
+      .then(function(audioBuf) {
+        decodedCache[url] = audioBuf;
+        callback(audioBuf);
+      })
+      .catch(function() { callback(null); });
+  }
+
+  function playBuffer(buffer, playbackRate, when) {
+    var c = getCtx();
+    var t0 = when || c.currentTime + 0.01;
+    var source = c.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.value = playbackRate;
+    source.detune.value = -1200 * Math.log2(playbackRate);
+    source.connect(c.destination);
+    source.start(t0);
+    return source;
+  }
+
+  function getContext() { return getCtx(); }
+
   // ── PUBLIC ──────────────────────────────────────────────────────────────
   function playInstrumentNote(freq, fingeringType, duration = 1.1) {
     getCtx();
@@ -192,5 +224,5 @@ const AudioEngine = (() => {
 
   function unlock() { getCtx(); }
 
-  return { playInstrumentNote, playInstrumentChord, playPianoChord, playClick, playShortNote, unlock };
+  return { playInstrumentNote, playInstrumentChord, playPianoChord, playClick, playShortNote, unlock, fetchAndDecode, playBuffer, getContext };
 })();
