@@ -196,7 +196,10 @@ function isLessonUnlocked(instrumentId, index) {
 
 // ── HELPERS ─────────────────────────────────────────────────────────────
 function getInstrument(id) { return CURRICULUM[id]; }
-function getLesson(instrumentId, index) { return CURRICULUM[instrumentId].lessons[index]; }
+function getLesson(instrumentId, index) {
+  if (APP.importedSong) return APP.importedSong;
+  return CURRICULUM[instrumentId].lessons[index];
+}
 function findLessonById(instrumentId, id) {
   return CURRICULUM[instrumentId].lessons.find(l => l.id === id);
 }
@@ -454,6 +457,9 @@ function renderMapScreen() {
         <div class="map-unit-label">Unit 1 · First Notes</div>
         <div class="map-path">${nodes}</div>
         ${doneCount > 0 ? `<button class="btn btn-secondary game-launch-btn" data-action="open-game" style="margin-top:20px;width:100%">🎯 Sight Reading Challenge</button>` : ''}
+        <button class="btn btn-secondary game-launch-btn" data-action="import-song" style="margin-top:10px;width:100%">📥 Import Song (MusicXML)</button>
+        <input type="file" id="import-file-input" accept=".musicxml,.xml" style="display:none" data-action="import-file-chosen">
+        <div id="imported-songs"></div>
       </div>
     </div>`;
 }
@@ -909,8 +915,10 @@ function nextGameNote() {
 function render() {
   const app = document.getElementById('app');
   if (APP.screen === 'select') app.innerHTML = renderSelectScreen();
-  else if (APP.screen === 'map') app.innerHTML = renderMapScreen();
-  else if (APP.screen === 'lesson') app.innerHTML = renderLessonScreen();
+  else if (APP.screen === 'map') {
+    app.innerHTML = renderMapScreen();
+    displayImportedSongs();
+  } else if (APP.screen === 'lesson') app.innerHTML = renderLessonScreen();
   else if (APP.screen === 'settings') app.innerHTML = renderSettingsScreen();
   else if (APP.screen === 'analytics') app.innerHTML = renderAnalyticsScreen();
   else if (APP.screen === 'game') app.innerHTML = renderGameScreen();
@@ -1202,6 +1210,184 @@ function downloadMusicXML(xml, filename) {
   URL.revokeObjectURL(url);
 }
 
+// ── MUSICXML IMPORT ───────────────────────────────────────────────────────
+var IMPORTED_SONGS_KEY = 'preludeRecorderImportedSongs';
+
+function getImportedSongs() {
+  try { return JSON.parse(localStorage.getItem(IMPORTED_SONGS_KEY)) || {}; }
+  catch(e) { return {}; }
+}
+
+function saveImportedSong(instrumentId, song) {
+  var all = getImportedSongs();
+  if (!all[instrumentId]) all[instrumentId] = [];
+  all[instrumentId].push(song);
+  localStorage.setItem(IMPORTED_SONGS_KEY, JSON.stringify(all));
+}
+
+// Convert note step/alter/octave to MIDI pitch number (written pitch)
+function noteToMIDI(step, alter, octave) {
+  var semitones = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  return (octave + 1) * 12 + (semitones[step] || 0) + (alter || 0);
+}
+
+// Build a map from written MIDI pitch → lesson ID for an instrument
+// The curriculum stores sounding pitch; recorders use octave-displaced
+// notation (written one octave lower) for treble-clef instruments.
+function buildPitchMap(instrumentId) {
+  var inst = getInstrument(instrumentId);
+  var isOctaveDisplaced = inst.clef !== 'bass'; // treble recorders: written ≠ sounding
+  var map = {};
+  inst.lessons.forEach(function(l) {
+    if (l.noteName && l.octave !== undefined) {
+      var writtenOctave = l.octave - (isOctaveDisplaced ? 1 : 0);
+      var alter = l.accidental === 'sharp' ? 1 : l.accidental === 'flat' ? -1 : 0;
+      var midi = noteToMIDI(l.noteName, alter, writtenOctave);
+      map[midi] = l.id;
+    }
+  });
+  return map;
+}
+
+// Find the closest lesson ID for a given written MIDI pitch
+function findClosestLesson(instrumentId, targetMidi) {
+  var map = buildPitchMap(instrumentId);
+  var keys = Object.keys(map).map(Number);
+  if (keys.length === 0) return null;
+  var closest = keys.reduce(function(best, k) {
+    return Math.abs(k - targetMidi) < Math.abs(best - targetMidi) ? k : best;
+  });
+  return map[closest];
+}
+
+// Map MusicXML <type> to Prelude duration code
+function typeToDuration(typeStr, isDotted) {
+  var map = { whole: 'w', half: 'h', quarter: 'q', eighth: '8', '16th': '16' };
+  return map[typeStr] || 'q';
+}
+
+// Parse MusicXML string into a Prelude song object
+function parseMusicXML(xmlText, instrumentId) {
+  var parser = new DOMParser();
+  var doc = parser.parseFromString(xmlText, 'text/xml');
+
+  if (doc.querySelector('parsererror')) {
+    throw new Error('Invalid XML');
+  }
+
+  // Title
+  var titleEl = doc.querySelector('part-name') || doc.querySelector('movement-title');
+  var title = titleEl ? titleEl.textContent.trim() : 'Imported Song';
+
+  // Key / time / clef from first measure's attributes
+  var attrs = doc.querySelector('measure > attributes');
+  var keyFifths = 0, timeNum = 4, timeDen = 4;
+  if (attrs) {
+    var k = attrs.querySelector('fifths');
+    if (k) keyFifths = parseInt(k.textContent) || 0;
+    var bn = attrs.querySelector('beats');
+    if (bn) timeNum = parseInt(bn.textContent) || 4;
+    var bt = attrs.querySelector('beat-type');
+    if (bt) timeDen = parseInt(bt.textContent) || 4;
+  }
+
+  // Extract all note elements across all measures (in document order)
+  var measureEls = doc.querySelectorAll('measure');
+  var noteGroups = []; // { melody: {...}, chord: [...] }
+  var currentGroup = null;
+
+  measureEls.forEach(function(meas) {
+    meas.querySelectorAll('note').forEach(function(noteEl) {
+      var isChord = noteEl.querySelector('chord');
+      var isRest = noteEl.querySelector('rest');
+      var typeEl = noteEl.querySelector('type');
+      var dotEl = noteEl.querySelector('dot');
+      var type = typeEl ? typeEl.textContent : 'quarter';
+      var dotted = !!dotEl;
+
+      var step, alter = 0, octave = 4;
+      if (!isRest) {
+        var pitchEl = noteEl.querySelector('pitch');
+        if (pitchEl) {
+          step = (pitchEl.querySelector('step') || {}).textContent;
+          var aEl = pitchEl.querySelector('alter');
+          if (aEl) alter = parseInt(aEl.textContent) || 0;
+          octave = parseInt((pitchEl.querySelector('octave') || {}).textContent) || 4;
+        }
+      }
+
+      var noteData = { step: step, alter: alter, octave: octave, type: type, dotted: dotted, rest: !!isRest };
+
+      if (isChord) {
+        if (currentGroup) currentGroup.chord.push(noteData);
+      } else {
+        currentGroup = { melody: noteData, chord: [] };
+        noteGroups.push(currentGroup);
+      }
+    });
+  });
+
+  // Convert to Prelude arrays
+  var noteIds = [], chordIds = [], durations = [];
+
+  noteGroups.forEach(function(group) {
+    if (group.melody.rest) return; // skip rests
+
+    var midi = noteToMIDI(group.melody.step, group.melody.alter, group.melody.octave);
+    var lessonId = findClosestLesson(instrumentId, midi);
+    if (!lessonId) return; // skip if no match
+
+    noteIds.push(lessonId);
+    durations.push(typeToDuration(group.melody.type, group.melody.dotted));
+
+    var ch = [];
+    group.chord.forEach(function(c) {
+      var cm = noteToMIDI(c.step, c.alter, c.octave);
+      var cl = findClosestLesson(instrumentId, cm);
+      if (cl) ch.push(cl);
+    });
+    chordIds.push(ch.length > 0 ? ch : null);
+  });
+
+  return {
+    noteName: title,
+    type: 'song',
+    noteIds: noteIds,
+    durations: durations,
+    chordIds: chordIds,
+    keySig: keyFifths,
+    timeSig: { num: timeNum, den: timeDen },
+    imported: true
+  };
+}
+
+// Display imported songs on the map
+function displayImportedSongs() {
+  var container = document.getElementById('imported-songs');
+  if (!container) return;
+  var songs = getImportedSongs();
+  var list = songs[APP.instrumentId] || [];
+  if (list.length === 0) { container.innerHTML = ''; return; }
+
+  var html = '<div class="map-unit-label" style="margin-top:24px">Imported Songs</div>';
+  list.forEach(function(song, i) {
+    var id = '__imported__' + i;
+    var existing = document.querySelector('[data-imported-id="' + id + '"]');
+    var isCompleted = false;
+    if (existing) isCompleted = existing.classList.contains('done');
+
+    var stateCls = isCompleted ? 'done' : 'available';
+    var starHtml = isCompleted ? '<span class="map-node-star">★★★</span>' : '';
+    html += '<div class="map-node-wrap" style="margin-top:8px">';
+    html += '<div class="map-node ' + stateCls + '" data-action="open-imported-song" data-imported-index="' + i + '">';
+    html += '<span class="map-node-note">' + escapeHtml(song.noteName) + '</span>' + starHtml;
+    html += '</div>';
+    html += '<div class="map-node-label">' + escapeHtml(song.noteName) + '</div>';
+    html += '</div>';
+  });
+  container.innerHTML = html;
+}
+
 // ── EVENT HANDLING ─────────────────────────────────────────────────────
 function handleAction(action, el) {
   switch (action) {
@@ -1211,6 +1397,7 @@ function handleAction(action, el) {
       const inst = getInstrument(id);
       if (!inst.available) { showToast(`${inst.name} is coming soon!`); return; }
       APP.instrumentId = id;
+      APP.importedSong = null;
       APP.screen = 'map';
       render();
       break;
@@ -1303,6 +1490,7 @@ function handleAction(action, el) {
       APP.reviewTotal = 0;
       if (APP.songPlayback && APP.songPlayback.timer) clearTimeout(APP.songPlayback.timer);
       APP.songPlayback = null;
+      APP.importedSong = null;
       APP.screen = 'map';
       render();
       break;
@@ -1429,6 +1617,7 @@ function handleAction(action, el) {
       APP.reviewTotal = 0;
       if (APP.songPlayback && APP.songPlayback.timer) clearTimeout(APP.songPlayback.timer);
       APP.songPlayback = null;
+      APP.importedSong = null;
       APP.screen = 'map';
       render();
       break;
@@ -1521,6 +1710,49 @@ function handleAction(action, el) {
         stopMetronome();
         startMetronome();
       }
+      render();
+      break;
+    }
+
+    // ── MusicXML Import ──────────────────────────────────────────────
+    case 'import-song': {
+      document.getElementById('import-file-input').click();
+      break;
+    }
+
+    case 'import-file-chosen': {
+      var file = el.files && el.files[0];
+      if (!file) break;
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          var song = parseMusicXML(e.target.result, APP.instrumentId);
+          if (!song.noteIds || song.noteIds.length === 0) {
+            showToast('No playable notes found in the MusicXML file.');
+            return;
+          }
+          saveImportedSong(APP.instrumentId, song);
+          showToast('Imported "' + song.noteName + '" (' + song.noteIds.length + ' notes)');
+          el.value = '';
+          render();
+        } catch(err) {
+          showToast('Error importing: ' + err.message);
+          el.value = '';
+        }
+      };
+      reader.readAsText(file);
+      break;
+    }
+
+    case 'open-imported-song': {
+      var idx = parseInt(el.dataset.importedIndex);
+      var songs = getImportedSongs();
+      var list = songs[APP.instrumentId] || [];
+      var song = list[idx];
+      if (!song) { showToast('Song not found.'); break; }
+      APP.importedSong = song;
+      APP.phase = 'present';
+      APP.screen = 'lesson';
       render();
       break;
     }
