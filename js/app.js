@@ -1127,14 +1127,16 @@ function runSongPlayback(inst, lesson) {
         var delay = (nextTime - c.currentTime) * 1000;
         APP.songPlayback.timer = setTimeout(function() { step(i + 1); }, Math.max(0, delay));
       } else {
-        // End of song — small timeout to allow final highlight to show
+        // Last note — let it ring for its full duration before ending
+        var lastBeat = beatDurs[notes.length - 1];
+        var lastMs = lastBeat * (600 / APP.songSpeed);
         APP.songPlayback.timer = setTimeout(function() {
           APP.songPlayback.active = false;
           APP.songPlayback.finished = true;
           if (APP.accompSource) { try { APP.accompSource.stop(); } catch(e) {} APP.accompSource = null; }
           if (APP._countInOverlay) { APP._countInOverlay.remove(); APP._countInOverlay = null; }
           render();
-        }, 500);
+        }, lastMs + 200);
       }
     }
 
