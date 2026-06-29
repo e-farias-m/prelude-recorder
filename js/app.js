@@ -577,7 +577,7 @@ function renderSongPlayPhase(inst, lesson) {
         ${playBtn}
         <div class="song-speed-control">
           <button class="btn-speed" data-action="song-speed-down" ${playback.active ? 'disabled' : ''}>−</button>
-          <span class="song-speed-label">${Math.round(APP.songSpeed * 100)}%</span>
+          <span class="song-speed-label">${Math.round(APP.songSpeed * 100)}% (${Math.round(100 * APP.songSpeed)} BPM)</span>
           <button class="btn-speed" data-action="song-speed-up" ${playback.active ? 'disabled' : ''}>+</button>
         </div>
 
@@ -1096,9 +1096,13 @@ function runSongPlayback(inst, lesson) {
             ellipse.setAttribute('fill', '#FFD166');
             ellipse.setAttribute('stroke', '#FFD166');
           }
-          if (container) {
-            const targetLeft = g.offsetLeft - container.offsetWidth * 0.3;
-            container.scrollBy({ left: targetLeft - container.scrollLeft, behavior: 'smooth' });
+          // Scroll to keep current note visible (SVG g.offsetLeft is 0, use getBBox)
+          const svg = container.querySelector('svg');
+          if (svg) {
+            const bbox = g.getBBox();
+            const scale = svg.getBoundingClientRect().width / svg.viewBox.animVal.width;
+            const targetLeft = bbox.x * scale - container.offsetWidth * 0.3;
+            container.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
           }
         }
       }
