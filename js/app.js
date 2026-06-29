@@ -1061,6 +1061,16 @@ function runSongPlayback(inst, lesson) {
     var rate = currentBPM / recordedBPM;
     var c = AudioEngine.getContext();
 
+    // Pre-compute cumulative beat offsets so highlighting can use the
+    // AudioContext clock directly — avoids setTimeout drift.
+    var beatDurs = notes.map(function(n) {
+      return n.dur === 'h' ? 2 : n.dur === 'w' ? 4 : n.dur === '8' ? 0.5 : 1;
+    });
+    var cumBeats = [0];
+    for (var ci = 0; ci < notes.length; ci++) {
+      cumBeats.push(cumBeats[ci] + beatDurs[ci]);
+    }
+
     function step(i) {
       if (i >= notes.length) {
         APP.songPlayback.active = false;
@@ -1110,9 +1120,21 @@ function runSongPlayback(inst, lesson) {
       // Don't play any synth sounds — the MP3 has everything
       const note = notes[i];
 
-      // Advance — half notes get 2 beats, whole notes 4, eighth notes 0.5
-      const beats = note.dur === 'h' ? 2 : note.dur === 'w' ? 4 : note.dur === '8' ? 0.5 : 1;
-      APP.songPlayback.timer = setTimeout(() => step(i + 1), msPerBeat * beats);
+      // Schedule next note using AudioContext time to stay locked to MP3
+      if (i + 1 < notes.length) {
+        var nextTime = audioStart + cumBeats[i + 1] * msPerBeat / 1000;
+        var delay = (nextTime - c.currentTime) * 1000;
+        APP.songPlayback.timer = setTimeout(function() { step(i + 1); }, Math.max(0, delay));
+      } else {
+        // End of song — small timeout to allow final highlight to show
+        APP.songPlayback.timer = setTimeout(function() {
+          APP.songPlayback.active = false;
+          APP.songPlayback.finished = true;
+          if (APP.accompSource) { try { APP.accompSource.stop(); } catch(e) {} APP.accompSource = null; }
+          if (APP._countInOverlay) { APP._countInOverlay.remove(); APP._countInOverlay = null; }
+          render();
+        }, 500);
+      }
     }
 
     // ── Count-in: 4 beats (visual + click), then accompaniment + step(0) ─
