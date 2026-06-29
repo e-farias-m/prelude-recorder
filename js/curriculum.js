@@ -71,7 +71,7 @@ const CURRICULUM = {
         noteIds: ['sr-1', 'sr-2', 'sr-3', 'sr-1', 'sr-2', 'sr-3', 'sr-3', 'sr-3', 'sr-3', 'sr-3', 'sr-2', 'sr-2', 'sr-2', 'sr-2', 'sr-1', 'sr-2', 'sr-3'],
         durations: ['h', 'h', 'w', 'h', 'h', 'w', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'h', 'h', 'w'],
         pianoChords: ['G','D7','G','G','D7','G','G','G','G/B','G/B','Am','Am','G/B','C','G','D7','G'],
-        accompaniment: { url: 'audio/hcb-piano.mp3', bpm: 80 },
+        accompaniment: { url: 'audio/hcb-piano.mp3', bpm: 100 },
       },
       {
         id: 'sr-song-2', type: 'song',
@@ -306,7 +306,7 @@ const CURRICULUM = {
         noteIds: ['ar-1', 'ar-2', 'ar-3', 'ar-1', 'ar-2', 'ar-3', 'ar-3', 'ar-3', 'ar-3', 'ar-3', 'ar-2', 'ar-2', 'ar-2', 'ar-2', 'ar-1', 'ar-2', 'ar-3'],
         durations: ['h', 'h', 'w', 'h', 'h', 'w', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'h', 'h', 'w'],
         pianoChords: ['G','D7','G','G','D7','G','G','G','G/B','G/B','Am','Am','G/B','C','G','D7','G'],
-        accompaniment: { url: 'audio/hcb-piano.mp3', bpm: 80 },
+        accompaniment: { url: 'audio/hcb-piano.mp3', bpm: 100 },
       },
       {
         id: 'ar-4', noteName: 'B', octave: 3, staffStep: -10, accidental: null, freq: 246.94,
@@ -473,7 +473,7 @@ const CURRICULUM = {
         noteIds: ['tn-1', 'tn-2', 'tn-3', 'tn-1', 'tn-2', 'tn-3', 'tn-3', 'tn-3', 'tn-3', 'tn-3', 'tn-2', 'tn-2', 'tn-2', 'tn-2', 'tn-1', 'tn-2', 'tn-3'],
         durations: ['h', 'h', 'w', 'h', 'h', 'w', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'h', 'h', 'w'],
         pianoChords: ['G','D7','G','G','D7','G','G','G','G/B','G/B','Am','Am','G/B','C','G','D7','G'],
-        accompaniment: { url: 'audio/hcb-piano.mp3', bpm: 80 },
+        accompaniment: { url: 'audio/hcb-piano.mp3', bpm: 100 },
       },
       {
         id: 'tn-4', noteName: 'E', octave: 3, staffStep: -7, accidental: null, freq: 164.81,
@@ -628,7 +628,7 @@ const CURRICULUM = {
         noteIds: ['br-1', 'br-2', 'br-3', 'br-1', 'br-2', 'br-3', 'br-3', 'br-3', 'br-3', 'br-3', 'br-2', 'br-2', 'br-2', 'br-2', 'br-1', 'br-2', 'br-3'],
         durations: ['h', 'h', 'w', 'h', 'h', 'w', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'h', 'h', 'w'],
         pianoChords: ['G','D7','G','G','D7','G','G','G','G/B','G/B','Am','Am','G/B','C','G','D7','G'],
-        accompaniment: { url: 'audio/hcb-piano.mp3', bpm: 80 },
+        accompaniment: { url: 'audio/hcb-piano.mp3', bpm: 100 },
       },
       {
         id: 'br-4', noteName: 'B', octave: 2, staffStep: 2, accidental: null, freq: 123.47,

@@ -1038,7 +1038,7 @@ function runSongPlayback(inst, lesson) {
   const durations = lesson.durations || [];
   const notes = rawNotes.map((n, i) => ({ ...n, dur: durations[i] || 'q' }));
   const filled = notes.map(n => n.dur !== 'h' && n.dur !== 'w');
-  const msPerBeat = 480 / APP.songSpeed;
+  const msPerBeat = 600 / APP.songSpeed; // 100% = 100 BPM
 
   APP.songPlayback = { active: true, index: -1, timer: null, finished: false };
   if (APP.songPlayback.timer) clearTimeout(APP.songPlayback.timer);
@@ -1056,15 +1056,10 @@ function runSongPlayback(inst, lesson) {
   }
 
   function kickoff(accompBuffer) {
-    var recordedBPM = accompData ? accompData.bpm : 120;
-    var currentBPM = 125 * APP.songSpeed;
+    var recordedBPM = accompData ? accompData.bpm : 100;
+    var currentBPM = 100 * APP.songSpeed; // 100% = 100 BPM
     var rate = currentBPM / recordedBPM;
     var c = AudioEngine.getContext();
-
-    var audioStart = c.currentTime + 0.3;
-    if (accompBuffer) {
-      APP.accompSource = AudioEngine.playBuffer(accompBuffer, rate, audioStart);
-    }
 
     function step(i) {
       if (i >= notes.length) {
@@ -1116,10 +1111,8 @@ function runSongPlayback(inst, lesson) {
       APP.songPlayback.timer = setTimeout(() => step(i + 1), msPerBeat * beats);
     }
 
-    // ── Count-in: 4 beats at current tempo ────────────────────────────
-    var beatMs = 480 / APP.songSpeed;
-    var countInBeats = 4;
-    var countInMs = countInBeats * beatMs;
+    // ── Count-in: 4 beats (visual + click), then accompaniment + step(0) ─
+    var countInMs = 4 * msPerBeat;
 
     var overlay = null;
     if (container) {
@@ -1142,7 +1135,7 @@ function runSongPlayback(inst, lesson) {
       APP.accompSource = AudioEngine.playBuffer(accompBuffer, rate, audioStart);
     }
 
-    // Metronome clicks + highlight each beat
+    // Count-in: visual beats + metronome clicks
     [1, 2, 3, 4].forEach(function(n, i) {
       setTimeout(function() {
         AudioEngine.playClick(n === 1);
@@ -1150,10 +1143,10 @@ function runSongPlayback(inst, lesson) {
           var el = overlay.querySelector('[data-ci="' + n + '"]');
           if (el) el.classList.add('active');
         }
-      }, i * beatMs);
+      }, i * msPerBeat);
     });
 
-    // Start step after count-in finishes
+    // Start step + accompaniment after count-in
     APP.songPlayback.timer = setTimeout(function() {
       if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
       APP._countInOverlay = null;
