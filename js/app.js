@@ -576,9 +576,9 @@ function renderSongPlayPhase(inst, lesson) {
       <div class="song-playback-controls">
         ${playBtn}
         <div class="song-speed-control">
-          <button class="btn-speed" data-action="song-speed-down" ${playback.active ? 'disabled' : ''}>−</button>
+          <button class="btn-speed" data-action="song-speed-down">−</button>
           <span class="song-speed-label">${Math.round(APP.songSpeed * 100)}% (${Math.round(100 * APP.songSpeed)} BPM)</span>
-          <button class="btn-speed" data-action="song-speed-up" ${playback.active ? 'disabled' : ''}>+</button>
+          <button class="btn-speed" data-action="song-speed-up">+</button>
         </div>
 
       </div>
@@ -1038,7 +1038,7 @@ function runSongPlayback(inst, lesson) {
   const durations = lesson.durations || [];
   const notes = rawNotes.map((n, i) => ({ ...n, dur: durations[i] || 'q' }));
   const filled = notes.map(n => n.dur !== 'h' && n.dur !== 'w');
-  const msPerBeat = 600 / APP.songSpeed; // 100% = 100 BPM
+  var spbMs = 600 / APP.songSpeed; // ms per beat at start — captured here, not const
 
   APP.songPlayback = { active: true, index: -1, timer: null, finished: false };
   if (APP.songPlayback.timer) clearTimeout(APP.songPlayback.timer);
@@ -1120,9 +1120,10 @@ function runSongPlayback(inst, lesson) {
       // Don't play any synth sounds — the MP3 has everything
       const note = notes[i];
 
-      // Schedule next note using AudioContext time to stay locked to MP3
+      // Schedule next note — read current speed each time so it tracks slider changes
       if (i + 1 < notes.length) {
-        var nextTime = audioStart + cumBeats[i + 1] * msPerBeat / 1000;
+        var curSpb = 600 / APP.songSpeed;
+        var nextTime = audioStart + cumBeats[i + 1] * curSpb / 1000;
         var delay = (nextTime - c.currentTime) * 1000;
         APP.songPlayback.timer = setTimeout(function() { step(i + 1); }, Math.max(0, delay));
       } else {
@@ -1138,7 +1139,7 @@ function runSongPlayback(inst, lesson) {
     }
 
     // ── Count-in: 4 beats (visual + click), then accompaniment + step(0) ─
-    var countInMs = 4 * msPerBeat;
+    var countInMs = 4 * spbMs;
 
     var overlay = null;
     if (container) {
@@ -1161,7 +1162,7 @@ function runSongPlayback(inst, lesson) {
       APP.accompSource = AudioEngine.playBuffer(accompBuffer, rate, audioStart);
     }
 
-    // Count-in: visual beats + metronome clicks
+    // Count-in: visual beats + metronome clicks (use captured spbMs)
     [1, 2, 3, 4].forEach(function(n, i) {
       setTimeout(function() {
         AudioEngine.playClick(n === 1);
@@ -1169,7 +1170,7 @@ function runSongPlayback(inst, lesson) {
           var el = overlay.querySelector('[data-ci="' + n + '"]');
           if (el) el.classList.add('active');
         }
-      }, i * msPerBeat);
+      }, i * spbMs);
     });
 
     // Start step + accompaniment after count-in
@@ -1266,12 +1267,28 @@ function handleAction(action, el) {
 
     case 'song-speed-down': {
       APP.songSpeed = Math.max(0.4, APP.songSpeed - 0.15);
-      render();
+      if (APP.accompSource) {
+        var ctx = AudioEngine.getContext();
+        APP.accompSource.playbackRate.setValueAtTime(APP.songSpeed, ctx.currentTime);
+        APP.accompSource.detune.setValueAtTime(-1200 * Math.log2(APP.songSpeed), ctx.currentTime);
+        var lbl = document.querySelector('.song-speed-label');
+        if (lbl) lbl.textContent = Math.round(APP.songSpeed * 100) + '% (' + Math.round(100 * APP.songSpeed) + ' BPM)';
+      } else {
+        render();
+      }
       break;
     }
     case 'song-speed-up': {
       APP.songSpeed = Math.min(2.0, APP.songSpeed + 0.15);
-      render();
+      if (APP.accompSource) {
+        var ctx = AudioEngine.getContext();
+        APP.accompSource.playbackRate.setValueAtTime(APP.songSpeed, ctx.currentTime);
+        APP.accompSource.detune.setValueAtTime(-1200 * Math.log2(APP.songSpeed), ctx.currentTime);
+        var lbl = document.querySelector('.song-speed-label');
+        if (lbl) lbl.textContent = Math.round(APP.songSpeed * 100) + '% (' + Math.round(100 * APP.songSpeed) + ' BPM)';
+      } else {
+        render();
+      }
       break;
     }
 
