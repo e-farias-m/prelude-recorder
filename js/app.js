@@ -1009,27 +1009,6 @@ function runPlaySequence(inst, lesson, listenOnly) {
   }
 }
 
-// ── SONG SEQUENCE ──────────────────────────────────────────────────────
-function runSongSequence(inst, lesson) {
-  const noteIds = lesson.noteIds;
-  const msPerBeat = 480;
-  noteIds.forEach((id, i) => {
-    const note = findLessonById(APP.instrumentId, id);
-    setTimeout(() => {
-      const chordRefs = lesson.chordIds ? lesson.chordIds[i] || [] : [];
-      if (chordRefs.length > 0) {
-        const freqs = [note.freq].concat(chordRefs.map(function(cid) {
-          var cn = findLessonById(APP.instrumentId, cid);
-          return cn ? cn.freq : null;
-        }).filter(Boolean));
-        AudioEngine.playInstrumentChord(freqs, inst.fingeringType, 0.45);
-      } else {
-        AudioEngine.playInstrumentNote(note.freq, inst.fingeringType, 0.45);
-      }
-    }, i * msPerBeat);
-  });
-}
-
 // ── SONG KARAOKE PLAYBACK ──────────────────────────────────────────────
 function runSongPlayback(inst, lesson) {
   if (APP.songPlayback && APP.songPlayback.active) return;

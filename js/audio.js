@@ -174,11 +174,6 @@ const AudioEngine = (() => {
     });
   }
 
-  // ── SHORT NOTE (for sight-reading / rapid playback) ─────────────────────
-  function playShortNote(freq) {
-    playRecorder(freq, 0.45);
-  }
-
   // ── DECODED AUDIO PLAYBACK (for MP3 accompaniment) ─────────────────────
   // Loads an MP3/audio file once, caches the decoded buffer, and plays
   // it with pitch-compensated speed control via playbackRate + detune.
@@ -224,5 +219,5 @@ const AudioEngine = (() => {
 
   function unlock() { getCtx(); }
 
-  return { playInstrumentNote, playInstrumentChord, playPianoChord, playClick, playShortNote, unlock, fetchAndDecode, playBuffer, getContext };
+  return { playInstrumentNote, playInstrumentChord, playPianoChord, playClick, unlock, fetchAndDecode, playBuffer, getContext };
 })();
