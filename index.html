@@ -14,6 +14,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/styles.css" />
+  <script>
+    (function () {
+      var theme = 'dark';
+      try { theme = localStorage.getItem('preludeRecorderTheme') || 'dark'; } catch (e) {}
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
 </head>
 <body>
   <div id="app">

@@ -18,6 +18,18 @@ var CHORD_FREQS = {
   'G/B': [123.47, 146.83, 196.00]
 };
 
+const THEME_KEY = 'preludeRecorderTheme';
+function getTheme() { return (typeof localStorage !== 'undefined' && localStorage.getItem(THEME_KEY)) || 'dark'; }
+function applyTheme(theme) {
+  if (typeof document !== 'undefined' && document.documentElement) {
+    document.documentElement.setAttribute('data-theme', theme);
+    const meta = document.querySelector && document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', theme === 'light' ? '#F5F4FB' : '#0E0D1C');
+  }
+}
+function setTheme(theme) { try { localStorage.setItem(THEME_KEY, theme); } catch (e) {} applyTheme(theme); }
+function toggleTheme() { setTheme(getTheme() === 'light' ? 'dark' : 'light'); }
+
 const APP = {
   screen: 'select',
   instrumentId: null,
@@ -250,6 +262,20 @@ function shuffle(arr) {
 }
 
 // ── RENDER: SELECT SCREEN ──────────────────────────────────────────────────
+function renderTunerPanel() {
+  const t = APP.tuner;
+  const running = !!(t && t.running);
+  const freq = t && t.freq > 0 ? t.freq : 0;
+  const detected = freq > 0 ? freqToNoteInfo(freq, getTunerNoteLessons()) : null;
+  const noteName = detected ? t_noteName(detected.note) : '—';
+  const cents = detected ? (detected.cents > 0 ? '+' + Math.round(detected.cents) : Math.round(detected.cents)) + ' cents' : (running ? 'Listening…' : 'Press Tune');
+  return `<div class="tuner-panel" style="margin:12px auto;max-width:320px;padding:12px;border:1px solid var(--border);border-radius:12px;text-align:center;">
+    <div style="font-size:28px;font-weight:700" id="tuner-note">${noteName}</div>
+    <div style="font-size:13px;color:var(--text-muted)" id="tuner-cents">${cents}</div>
+    <button class="btn btn-secondary" data-action="toggle-tuner" style="margin-top:8px">${running ? '⏹ Stop' : '🎵 Tune'}</button>
+  </div>`;
+}
+
 function renderSelectScreen() {
   const cards = INSTRUMENT_ORDER.map(id => {
     const inst = CURRICULUM[id];
@@ -267,7 +293,9 @@ function renderSelectScreen() {
   const streak = updateStreak();
   const streakText = streak > 1 ? `${streak} day streak! 🔥` : 'Start your streak today!';
   const langIcon = `<button class="btn-icon" data-action="toggle-language" title="Language" style="background:none;border:none;cursor:pointer;font-size:14px;vertical-align:middle;margin-left:6px;">${getLang() === 'pt' ? 'PT' : 'EN'}</button>`;
+  const themeIcon = `<button class="btn-icon" data-action="toggle-theme" title="Theme" style="background:none;border:none;cursor:pointer;font-size:14px;vertical-align:middle;margin-left:6px;">${getTheme() === 'light' ? '\u2600\uFE0F' : '\u{1F319}'}</button>`;
   const settingsIcon = `<button class="btn-icon settings-gear" data-action="open-settings" title="Settings" style="background:none;border:none;cursor:pointer;font-size:18px;vertical-align:middle;margin-left:6px;">⚙️</button>`;
+  const tunerIcon = `<button class="btn-icon" data-action="toggle-tuner" title="Tuner" style="background:none;border:none;cursor:pointer;font-size:14px;vertical-align:middle;margin-left:6px;">🎵</button>`;
   const studentName = getStudentName();
 
   return `
@@ -284,9 +312,10 @@ function renderSelectScreen() {
         <div class="select-headline">${t('First notes, first wins.')}</div>
         <div class="select-sub">${t('Pick a recorder to start your very first lessons — fingerings, notes, and your first sounds.')}</div>
       </div>
-      <div class="streak-bar">${streakText} ${langIcon} ${settingsIcon}</div>
+      <div class="streak-bar">${streakText} ${langIcon} ${themeIcon} ${tunerIcon} ${settingsIcon}</div>
       <div class="select-student-name">${escapeHtml(studentName)}</div>
       <div class="instrument-grid">${cards}</div>
+      ${renderTunerPanel()}
       <div class="version-badge" data-action="show-analytics" style="cursor:pointer">v${VERSION}</div>
     </div>`;
 }
@@ -721,7 +750,7 @@ function renderPlayPhase(inst, lesson) {
   const fingeringSvg = Graphics.fingeringSVG(inst.fingeringType, lesson.fingeringState, inst.accentColor, 120);
   const cells = [1, 2, 3, 4].map(n => `<div class="beat-cell count-in" data-beat="${n}"><span class="beat-num">${n}</span></div>`).join('');
   const playCell = `<div class="beat-cell" data-beat="play">♪</div>`;
-  const metActive = APP.metronome ? APP.metronome.on : false;
+  const metActive = APP.metronome ? APP.metronome.running : false;
   const metBpm = APP.metronome ? APP.metronome.bpm : 80;
   const metCls = metActive ? 'btn btn-secondary met-active' : 'btn btn-secondary';
 
@@ -807,24 +836,71 @@ function renderCompletePhase(inst, lesson) {
 }
 
 // ── METRONOME ENGINE ────────────────────────────────────────────────────
-let metIntervalId = null;
-
-function startMetronome() {
-  if (!APP.metronome) APP.metronome = { on: false, bpm: 80 };
-  if (metIntervalId) { clearInterval(metIntervalId); metIntervalId = null; }
-  AudioEngine.unlock();
-  APP.metronome.on = true;
-  const ms = 60000 / APP.metronome.bpm;
-  let beat = 0;
-  metIntervalId = setInterval(() => {
-    AudioEngine.playClick(beat === 0);
-    beat = (beat + 1) % 4;
-  }, ms);
+function createMetronome(bpm = 80, beatsPerBar = 4) {
+  return { bpm: Math.max(40, Math.min(240, bpm || 80)), beatsPerBar: beatsPerBar || 4, beat: -1, subTick: 0, subdivision: 1, countIn: false, countInLeft: 0, running: false, timerId: null, taps: [] };
 }
-
+function bpmToTickMs(bpm, subdivision = 1) {
+  const subs = Math.max(1, subdivision || 1);
+  return Math.round(60000 / (Math.max(40, Math.min(240, bpm || 80)) * subs));
+}
+function bpmToIntervalMs(bpm) { return Math.round(60000 / Math.max(40, Math.min(240, bpm || 80))); }
+function advanceMetronome(metro) {
+  const bpb = Math.max(1, metro.beatsPerBar || 4);
+  metro.beat = (metro.beat + 1) % bpb;
+  return { beat: metro.beat, accent: metro.beat === 0 };
+}
+function metronomeTick(metro) {
+  const subs = Math.max(1, metro.subdivision || 1);
+  if (metro.beat < 0 || metro.subTick >= subs - 1) {
+    const { beat, accent } = advanceMetronome(metro);
+    metro.subTick = 0;
+    return { beat, sub: 0, isBeat: true, accent };
+  }
+  metro.subTick += 1;
+  return { beat: metro.beat, sub: metro.subTick, isBeat: false, accent: false };
+}
+function startMetronomeTicker() {
+  const m = APP.metronome;
+  if (!m) return;
+  clearTimeout(m.timerId);
+  let inCountIn = m.countInLeft > 0;
+  const step = () => {
+    if (!m.running) return;
+    let delay;
+    if (inCountIn) {
+      const { accent } = advanceMetronome(m);
+      AudioEngine.playClick(accent);
+      m.countInLeft -= 1;
+      if (m.countInLeft <= 0) { inCountIn = false; m.beat = -1; m.subTick = 0; }
+      delay = bpmToIntervalMs(m.bpm);
+    } else {
+      const tick = metronomeTick(m);
+      AudioEngine.playClick(tick.accent);
+      delay = bpmToTickMs(m.bpm, m.subdivision);
+    }
+    m.timerId = setTimeout(step, delay);
+  };
+  step();
+}
+function startMetronome() {
+  if (!APP.metronome) APP.metronome = createMetronome(80, 4);
+  AudioEngine.unlock();
+  APP.metronome.beat = -1;
+  APP.metronome.subTick = 0;
+  APP.metronome.countInLeft = APP.metronome.countIn ? APP.metronome.beatsPerBar : 0;
+  APP.metronome.running = true;
+  APP.metronome.taps = [];
+  startMetronomeTicker();
+}
 function stopMetronome() {
-  if (metIntervalId) { clearInterval(metIntervalId); metIntervalId = null; }
-  if (APP.metronome) APP.metronome.on = false;
+  const m = APP.metronome;
+  if (!m) return;
+  clearTimeout(m.timerId);
+  m.timerId = null;
+  m.running = false;
+  m.beat = -1;
+  m.subTick = 0;
+  m.countInLeft = 0;
 }
 
 // ── SIGHT-READING GAME ──────────────────────────────────────────────────
@@ -1426,6 +1502,14 @@ function handleAction(action, el) {
     case 'toggle-language':
       setLang(getLang() === 'pt' ? 'en' : 'pt');
       break;
+    case 'toggle-theme':
+      toggleTheme();
+      render();
+      break;
+    case 'toggle-tuner':
+      if (APP.tuner && APP.tuner.running) stopTuner(); else startTuner();
+      render();
+      break;
     case 'open-settings':
       APP.screen = 'settings';
       stopMetronome();
@@ -1494,8 +1578,8 @@ function handleAction(action, el) {
 
     // ── Metronome ─────────────────────────────────────────────────────
     case 'toggle-metronome': {
-      if (!APP.metronome) APP.metronome = { on: false, bpm: 80 };
-      if (APP.metronome.on) {
+      if (!APP.metronome) APP.metronome = createMetronome(80, 4);
+      if (APP.metronome.running) {
         stopMetronome();
       } else {
         startMetronome();
@@ -1506,8 +1590,8 @@ function handleAction(action, el) {
 
     case 'set-bpm': {
       const bpm = parseInt(el.value, 10);
-      if (!APP.metronome) APP.metronome = { on: false, bpm: 80 };
-      const wasOn = APP.metronome.on;
+      if (!APP.metronome) APP.metronome = createMetronome(80, 4);
+      const wasOn = APP.metronome.running;
       APP.metronome.bpm = bpm;
       if (wasOn) {
         stopMetronome();
@@ -1579,8 +1663,124 @@ document.addEventListener('input', (e) => {
   if (label) label.textContent = `${bpm} BPM`;
 });
 
+
+// ── TUNER (pitch detection) ─────────────────────────────────────────────
+function detectPitch(buffer, sampleRate) {
+  if (!buffer || buffer.length < 2 || !sampleRate) return -1;
+  const size = buffer.length;
+  let peak = 0, energy = 0;
+  for (let i = 0; i < size; i++) {
+    const v = buffer[i];
+    const a = v < 0 ? -v : v;
+    if (a > peak) peak = a;
+    energy += v * v;
+  }
+  if (peak < 0.02 || Math.sqrt(energy / size) < 0.01) return -1;
+  const minLag = Math.max(2, Math.floor(sampleRate / 2000));
+  const maxLag = Math.min(size - 2, Math.ceil(sampleRate / 40));
+  if (maxLag <= minLag) return -1;
+  const prefix = new Float64Array(size + 1);
+  for (let i = 0; i < size; i++) prefix[i + 1] = prefix[i] + buffer[i] * buffer[i];
+  const total = prefix[size];
+  const nsdf = new Float32Array(maxLag + 1);
+  let bestVal = 0;
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    const denom = prefix[size - lag] + (total - prefix[lag]);
+    let sum = 0;
+    for (let i = 0; i < size - lag; i++) sum += buffer[i] * buffer[i + lag];
+    const value = denom > 0 ? (2 * sum) / denom : 0;
+    nsdf[lag] = value;
+    if (value > bestVal) bestVal = value;
+  }
+  if (bestVal < 0.5) return -1;
+  const threshold = bestVal * 0.9;
+  let chosen = -1;
+  for (let lag = minLag + 1; lag < maxLag; lag++) {
+    if (nsdf[lag] >= nsdf[lag - 1] && nsdf[lag] > nsdf[lag + 1] && nsdf[lag] >= threshold) { chosen = lag; break; }
+  }
+  if (chosen < 0) return -1;
+  const y0 = nsdf[chosen - 1], y1 = nsdf[chosen], y2 = nsdf[chosen + 1];
+  const curve = y0 - 2 * y1 + y2;
+  const shift = curve !== 0 ? (y0 - y2) / (2 * curve) : 0;
+  const period = chosen + Math.max(-1, Math.min(1, shift));
+  if (period <= 0) return -1;
+  const freq = sampleRate / period;
+  if (freq < 40 || freq > 2000) return -1;
+  return freq;
+}
+function freqToNoteInfo(freq, noteLessons) {
+  if (!freq || freq <= 0 || !noteLessons || !noteLessons.length) return null;
+  let best = null;
+  noteLessons.forEach(n => {
+    if (!n.freq) return;
+    const cents = 1200 * Math.log2(freq / n.freq);
+    if (best === null || Math.abs(cents) < Math.abs(best.cents)) best = { note: n, cents };
+  });
+  return best;
+}
+function getTunerNoteLessons() {
+  const id = (typeof getSavedInstrument === 'function' && getSavedInstrument()) || (INSTRUMENT_ORDER && INSTRUMENT_ORDER[0]);
+  const inst = id ? CURRICULUM[id] : null;
+  if (!inst || !inst.lessons) return [];
+  return inst.lessons.filter(l => !l.type || (l.type !== 'song' && l.type !== 'review'));
+}
+function stopTuner() {
+  const t = APP.tuner;
+  if (!t) return;
+  if (t.frame) cancelAnimationFrame(t.frame);
+  if (t.stream) t.stream.getTracks().forEach(tr => tr.stop());
+  if (t.ctx && t.ctx.close) t.ctx.close().catch(() => {});
+  t.running = false; t.frame = null; t.stream = null; t.ctx = null;
+}
+function startTuner() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { showToast('Microphone not available for tuning.'); return; }
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) { showToast('Audio analysis not supported here.'); return; }
+  stopTuner();
+  APP.tuner = { running: true, freq: -1, ctx: null, stream: null, frame: null };
+  const t = APP.tuner;
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    if (!APP.tuner || !APP.tuner.running) { stream.getTracks().forEach(tr => tr.stop()); return; }
+    t.stream = stream;
+    t.ctx = new Ctx();
+    const source = t.ctx.createMediaStreamSource(stream);
+    const analyser = t.ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    source.connect(analyser);
+    const buf = new Float32Array(analyser.fftSize);
+    const loop = () => {
+      if (!APP.tuner || !APP.tuner.running) return;
+      analyser.getFloatTimeDomainData(buf);
+      t.freq = detectPitch(buf, t.ctx.sampleRate);
+      updateTunerReadout();
+      APP.tuner.frame = requestAnimationFrame(loop);
+    };
+    loop();
+  }).catch(() => {
+    if (APP.tuner) APP.tuner.running = false;
+    showToast('Could not access the microphone.');
+    render();
+  });
+}
+function updateTunerReadout() {
+  const t = APP.tuner;
+  if (!t) return;
+  const noteEl = document.getElementById('tuner-note');
+  const centsEl = document.getElementById('tuner-cents');
+  if (noteEl) {
+    const detected = t.freq > 0 ? freqToNoteInfo(t.freq, getTunerNoteLessons()) : null;
+    noteEl.textContent = detected ? t_noteName(detected.note) : '—';
+  }
+  if (centsEl) {
+    const detected = t.freq > 0 ? freqToNoteInfo(t.freq, getTunerNoteLessons()) : null;
+    centsEl.textContent = detected ? (detected.cents > 0 ? '+' + Math.round(detected.cents) + ' cents' : Math.round(detected.cents) + ' cents') : (t.running ? 'Listening…' : 'Press Tune');
+  }
+}
+function t_noteName(n) { return n.noteName || n.name || '?'; }
+
 // ── INIT ───────────────────────────────────────────────────────────────
 initLang();
+applyTheme(getTheme());
 loadProgress();
 if (!getStudentName()) showNamePrompt();
 render();

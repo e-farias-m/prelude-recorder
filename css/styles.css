@@ -1737,3 +1737,31 @@ button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2
   .game-option-btn { min-width: 56px; padding: 12px 16px !important; font-size: 16px !important; }
   .metronome-controls { flex-wrap: wrap; }
 }
+
+
+/* ── LIGHT THEME ────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg-deep:      #F5F4FB;
+  --bg-surface:   #FFFFFF;
+  --bg-elevated:  #F0EFF7;
+  --bg-card:      #FFFFFF;
+  --bg-highlight: #E7E5F3;
+
+  --accent-warm:  #B8500F;
+  --accent-warm2: #CE6220;
+  --accent-cool:  #5A44D0;
+  --success:      #14713F;
+  --error:        #C22B2B;
+  --gold:         #9A6E08;
+  --gold-dim:     #7A5A14;
+
+  --text-primary: #1C1A33;
+  --text-muted:   #5E5A80;
+  --text-faint:   #8E8AB0;
+
+  --border:       #DCDAEA;
+  --border-focus: #B8500F;
+
+  --shadow-card: 0 4px 20px rgba(28,26,51,0.10);
+  --shadow-glow: 0 0 20px rgba(224,106,30,0.22);
+}
