@@ -1,0 +1,10 @@
+{
+  "name": "prelude-for-recorder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node test-curriculum.js && node test-graphics.js && node test-app.js",
+    "test:all": "node test-curriculum.js && node test-graphics.js && node test-app.js"
+  }
+}
