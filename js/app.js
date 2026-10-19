@@ -1,3 +1,11 @@
+// i18n fallbacks for environments that load app.js without i18n.js
+if (typeof t !== 'function') { var t = function(s){ return s; }; }
+if (typeof initLang !== 'function') { var initLang = function(){}; }
+if (typeof getLang !== 'function') { var getLang = function(){ return 'en'; }; }
+if (typeof setLang !== 'function') { var setLang = function(){}; }
+if (typeof TRANSLATIONS === 'undefined') { var TRANSLATIONS = { en:{}, pt:{} }; }
+if (typeof LANG === 'undefined') { var LANG = 'en'; }
+
 // app.js
 // Application state machine and rendering for Prelude for Recorder.
 // Single delegated click listener drives all interaction via data-action.
@@ -258,6 +266,7 @@ function renderSelectScreen() {
 
   const streak = updateStreak();
   const streakText = streak > 1 ? `${streak} day streak! 🔥` : 'Start your streak today!';
+  const langIcon = `<button class="btn-icon" data-action="toggle-language" title="Language" style="background:none;border:none;cursor:pointer;font-size:14px;vertical-align:middle;margin-left:6px;">${getLang() === 'pt' ? 'PT' : 'EN'}</button>`;
   const settingsIcon = `<button class="btn-icon settings-gear" data-action="open-settings" title="Settings" style="background:none;border:none;cursor:pointer;font-size:18px;vertical-align:middle;margin-left:6px;">⚙️</button>`;
   const studentName = getStudentName();
 
@@ -272,10 +281,10 @@ function renderSelectScreen() {
           </svg>
           <span class="wordmark-text">Prelude <span>for Recorder</span></span>
         </div>
-        <div class="select-headline">First notes, first wins.</div>
-        <div class="select-sub">Pick a recorder to start your very first lessons — fingerings, notes, and your first sounds.</div>
+        <div class="select-headline">${t('First notes, first wins.')}</div>
+        <div class="select-sub">${t('Pick a recorder to start your very first lessons — fingerings, notes, and your first sounds.')}</div>
       </div>
-      <div class="streak-bar">${streakText} ${settingsIcon}</div>
+      <div class="streak-bar">${streakText} ${langIcon} ${settingsIcon}</div>
       <div class="select-student-name">${escapeHtml(studentName)}</div>
       <div class="instrument-grid">${cards}</div>
       <div class="version-badge" data-action="show-analytics" style="cursor:pointer">v${VERSION}</div>
@@ -376,7 +385,7 @@ function renderReferenceOverlay() {
     <div class="screen active reference-overlay" id="reference-overlay">
       <div class="reference-content">
         <div class="reference-header">
-          <span class="reference-note-name">${lesson.noteName}</span>
+          <span class="reference-note-name">${escapeHtml(t(lesson.noteName))}</span>
           <button class="btn-icon" data-action="close-reference" style="background:none;border:none;cursor:pointer;font-size:24px;">✕</button>
         </div>
         <div class="reference-diagrams">
@@ -389,8 +398,8 @@ function renderReferenceOverlay() {
             <div class="reference-diagram-svg">${staffSvg}</div>
           </div>
         </div>
-        <div class="reference-description">${lesson.description}</div>
-        <div class="reference-prompt">${lesson.prompt}</div>
+        <div class="reference-description">${escapeHtml(t(lesson.description))}</div>
+        <div class="reference-prompt">${escapeHtml(t(lesson.prompt))}</div>
       </div>
     </div>`;
 }
@@ -424,14 +433,14 @@ function renderMapScreen() {
       const stars = prog.completed[lesson.id].stars;
       const mastery = getNoteMastery(APP.instrumentId, lesson.id);
       const masteryLevel = getMasteryLevel(mastery);
-      inner = `<span class="map-node-note">${lesson.noteName}</span><span class="map-node-star">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</span>`;
+      inner = `<span class="map-node-note">${escapeHtml(t(lesson.noteName))}</span><span class="map-node-star">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</span>`;
       masteryHtml = `<div class="map-node-mastery mastery-${masteryLevel}">${getMasteryLabel(masteryLevel)}</div>`;
     } else if (unlocked && !completed) {
       stateCls = 'current';
-      inner = `<span class="map-node-note">${lesson.noteName}</span>`;
+      inner = `<span class="map-node-note">${escapeHtml(t(lesson.noteName))}</span>`;
     } else if (unlocked) {
       stateCls = 'available';
-      inner = `<span class="map-node-note">${lesson.noteName}</span>`;
+      inner = `<span class="map-node-note">${escapeHtml(t(lesson.noteName))}</span>`;
     }
 
     const connector = i === 0 ? '' : `<div class="map-connector ${prog.completed[inst.lessons[i-1].id] ? 'done' : ''}"></div>`;
@@ -532,12 +541,12 @@ function renderPresentPhase(inst, lesson) {
         </div>
       </div>
       <div class="note-name-block">
-        <span class="note-name-big">${lesson.noteName}</span>
+        <span class="note-name-big">${escapeHtml(t(lesson.noteName))}</span>
       </div>
-      <div class="note-description">${lesson.description}</div>
+      <div class="note-description">${escapeHtml(t(lesson.description))}</div>
       ${transposeNote}
       <div class="gap-md"></div>
-      <div class="note-prompt">${lesson.prompt}</div>
+      <div class="note-prompt">${escapeHtml(t(lesson.prompt))}</div>
       <div class="gap-lg"></div>
       <button class="btn-hear" data-action="hear-note"><span class="hear-icon">🔊</span> Hear it</button>
     </div>
@@ -566,7 +575,7 @@ function renderSongPlayPhase(inst, lesson) {
 
   return `
     <div class="lesson-body">
-      <div class="song-title">${lesson.noteName}</div>
+      <div class="song-title">${escapeHtml(t(lesson.noteName))}</div>
       <div class="song-note-count">${totalNotes} notes</div>
       <div class="song-score-card">
         <div class="song-score-wrap" id="song-score-container">
@@ -654,11 +663,11 @@ function renderQuizPhase(inst, lesson) {
   if (q.quizType === QUIZ_TYPES.FINGERING_TO_NOTE) {
     promptHtml = `<div class="quiz-prompt-svg">${Graphics.fingeringSVG(inst.fingeringType, q.prompt.fingeringState, inst.accentColor, 100)}</div>`;
   } else if (q.quizType === QUIZ_TYPES.NOTE_TO_FINGERING) {
-    promptHtml = `<div class="quiz-prompt-note">${q.prompt.noteName}</div>`;
+    promptHtml = `<div class="quiz-prompt-note">${escapeHtml(t(q.prompt.noteName))}</div>`;
   } else if (q.quizType === QUIZ_TYPES.STAFF_TO_NOTE) {
     promptHtml = `<div class="quiz-prompt-svg">${Graphics.staffSVG({ pos: q.prompt.staffStep, accidental: q.prompt.accidental, clef: inst.clef, accentColor: inst.accentColor, width: 100 })}</div>`;
   } else if (q.quizType === QUIZ_TYPES.NOTE_TO_STAFF) {
-    promptHtml = `<div class="quiz-prompt-note">${q.prompt.noteName}</div>`;
+    promptHtml = `<div class="quiz-prompt-note">${escapeHtml(t(q.prompt.noteName))}</div>`;
   }
 
   // ── OPTIONS ──
@@ -674,12 +683,12 @@ function renderQuizPhase(inst, lesson) {
     let content = '';
     if (q.quizType === QUIZ_TYPES.FINGERING_TO_NOTE) {
       cls += ' text-only';
-      content = `<div class="quiz-option-note">${opt.noteName}</div>`;
+      content = `<div class="quiz-option-note">${escapeHtml(t(opt.noteName))}</div>`;
     } else if (q.quizType === QUIZ_TYPES.NOTE_TO_FINGERING) {
       content = `<div class="quiz-option-svg">${Graphics.fingeringSVG(inst.fingeringType, opt.fingeringState, inst.accentColor, 72)}</div>`;
     } else if (q.quizType === QUIZ_TYPES.STAFF_TO_NOTE) {
       cls += ' text-only';
-      content = `<div class="quiz-option-note">${opt.noteName}</div>`;
+      content = `<div class="quiz-option-note">${escapeHtml(t(opt.noteName))}</div>`;
     } else if (q.quizType === QUIZ_TYPES.NOTE_TO_STAFF) {
       content = `<div class="quiz-option-svg">${Graphics.staffSVG({ pos: opt.staffStep, accidental: opt.accidental, clef: inst.clef, accentColor: inst.accentColor, width: 72 })}</div>`;
     }
@@ -722,7 +731,7 @@ function renderPlayPhase(inst, lesson) {
       <div class="play-layout">
         <div class="play-diagram-large">
           ${fingeringSvg}
-          <span class="play-note-label">${lesson.noteName}</span>
+          <span class="play-note-label">${escapeHtml(t(lesson.noteName))}</span>
         </div>
         <div class="beat-grid">${cells}${playCell}</div>
         <div class="play-status" id="play-status">Tap Start, then play along on the count.</div>
@@ -756,7 +765,7 @@ function renderCompletePhase(inst, lesson) {
       const color = getMasteryColor(level);
       return `
         <div class="review-note-row">
-          <span class="review-note-name">${note.noteName}</span>
+          <span class="review-note-name">${escapeHtml(t(note.noteName))}</span>
           <span class="review-note-badge" style="background:${color}22;color:${color}">${getMasteryLabel(level)}</span>
         </div>`;
     }).join('');
@@ -1178,7 +1187,7 @@ function handleAction(action, el) {
     case 'select-instrument': {
       const id = el.dataset.id;
       const inst = getInstrument(id);
-      if (!inst.available) { showToast(`${inst.name} is coming soon!`); return; }
+      if (!inst.available) { showToast(`${t(inst.name)} is coming soon!`); return; }
       APP.instrumentId = id;
       APP.screen = 'map';
       render();
@@ -1414,6 +1423,9 @@ function handleAction(action, el) {
       break;
 
     // ── Settings ──────────────────────────────────────────────────────
+    case 'toggle-language':
+      setLang(getLang() === 'pt' ? 'en' : 'pt');
+      break;
     case 'open-settings':
       APP.screen = 'settings';
       stopMetronome();
@@ -1568,6 +1580,7 @@ document.addEventListener('input', (e) => {
 });
 
 // ── INIT ───────────────────────────────────────────────────────────────
+initLang();
 loadProgress();
 if (!getStudentName()) showNamePrompt();
 render();
