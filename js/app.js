@@ -38,6 +38,8 @@ const APP = {
   quiz: null,
   play: { running: false, hasPlayed: false },
   progress: {},
+  toolsOpen: false,
+  toolTab: 'metronome',
   // Review session state
   reviewQueue: null,
   reviewIndex: 0,
@@ -315,7 +317,6 @@ function renderSelectScreen() {
       <div class="streak-bar">${streakText} ${langIcon} ${themeIcon} ${tunerIcon} ${settingsIcon}</div>
       <div class="select-student-name">${escapeHtml(studentName)}</div>
       <div class="instrument-grid">${cards}</div>
-      ${renderTunerPanel()}
       <div class="version-badge" data-action="show-analytics" style="cursor:pointer">v${VERSION}</div>
     </div>`;
 }
@@ -1003,6 +1004,52 @@ function nextGameNote() {
 }
 
 // ── MASTER RENDER ───────────────────────────────────────────────────────
+function renderToolWidget() {
+  const host = document.getElementById('tool-widget');
+  if (!host) return;
+  const open = !!APP.toolsOpen;
+  const tab = APP.toolTab === 'tuner' ? 'tuner' : 'metronome';
+  const body = tab === 'tuner' ? renderTunerPanel() : renderMetronomePanel();
+  host.innerHTML = `
+    <div class="tool-panel${open ? ' open' : ''}" role="dialog" aria-label="Metronome and tuner" aria-hidden="${open ? 'false' : 'true'}">
+      <div class="tool-panel-head">
+        <div class="tool-tabs">
+          <button class="tool-tab${tab === 'metronome' ? ' active' : ''}" data-action="tools-tab" data-tab="metronome">Metronome</button>
+          <button class="tool-tab${tab === 'tuner' ? ' active' : ''}" data-action="tools-tab" data-tab="tuner">Tuner</button>
+        </div>
+        <button class="tool-close" data-action="close-tools" aria-label="Close">✕</button>
+      </div>
+      <div class="tool-panel-body">${body}</div>
+    </div>
+    <button class="tool-fab${open ? ' active' : ''}" data-action="toggle-tools" aria-label="Metronome / tuner" title="Metronome / Tuner" aria-expanded="${open ? 'true' : 'false'}">
+      <span class="tool-fab-icon">🎵</span>
+    </button>`;
+}
+
+function renderMetronomePanel() {
+  if (!APP.metronome) APP.metronome = createMetronome(80, 4);
+  const m = APP.metronome;
+  const dots = [];
+  for (let i = 0; i < (m.beatsPerBar || 4); i++) {
+    dots.push(`<div class="metro-dot ${i === m.beat ? 'metro-dot-active' : ''} ${i === 0 ? 'metro-dot-downbeat' : ''}"></div>`);
+  }
+  return `
+    <div class="tool-metro">
+      <div class="metro-dots" id="metronome-dots">${dots.join('')}</div>
+      <div class="tool-bpm">
+        <button class="tool-step" data-action="metronome-bpm" data-delta="-5" aria-label="Slower">−</button>
+        <div class="tool-bpm-value"><span id="metronome-bpm">${m.bpm}</span><small>BPM</small></div>
+        <button class="tool-step" data-action="metronome-bpm" data-delta="5" aria-label="Faster">+</button>
+      </div>
+      <div class="tool-row tool-row-between">
+        <button class="tool-pill${m.countIn ? ' active' : ''}" data-action="metronome-countin" role="switch" aria-checked="${m.countIn ? 'true' : 'false'}">Count-in</button>
+      </div>
+      <div class="tool-actions">
+        <button class="btn btn-primary tool-play" data-action="metronome-toggle" id="metronome-toggle">${m.running ? '\u25A0 Stop' : '\u25B6 Start'}</button>
+      </div>
+    </div>`;
+}
+
 function render() {
   const app = document.getElementById('app');
   if (APP.screen === 'select') app.innerHTML = renderSelectScreen();
@@ -1011,6 +1058,7 @@ function render() {
   else if (APP.screen === 'settings') app.innerHTML = renderSettingsScreen();
   else if (APP.screen === 'analytics') app.innerHTML = renderAnalyticsScreen();
   else if (APP.screen === 'game') app.innerHTML = renderGameScreen();
+  renderToolWidget();
   if (APP.showReference) {
     const refHtml = renderReferenceOverlay();
     if (refHtml) app.insertAdjacentHTML('beforeend', refHtml);
@@ -1585,6 +1633,36 @@ function handleAction(action, el) {
         startMetronome();
       }
       render();
+      break;
+    }
+
+    case 'toggle-tools': {
+      APP.toolsOpen = !APP.toolsOpen;
+      renderToolWidget();
+      break;
+    }
+    case 'close-tools': {
+      APP.toolsOpen = false;
+      renderToolWidget();
+      break;
+    }
+    case 'tools-tab': {
+      APP.toolTab = el.dataset.tab || 'metronome';
+      renderToolWidget();
+      break;
+    }
+    case 'metronome-bpm': {
+      if (!APP.metronome) APP.metronome = createMetronome(80, 4);
+      const d = parseInt(el.dataset.delta, 10) || 0;
+      APP.metronome.bpm = Math.max(40, Math.min(240, (APP.metronome.bpm || 80) + d));
+      if (APP.metronome.running) { stopMetronome(); startMetronome(); }
+      renderToolWidget();
+      break;
+    }
+    case 'metronome-countin': {
+      if (!APP.metronome) APP.metronome = createMetronome(80, 4);
+      APP.metronome.countIn = !APP.metronome.countIn;
+      renderToolWidget();
       break;
     }
 
