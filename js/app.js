@@ -860,6 +860,17 @@ function metronomeTick(metro) {
   metro.subTick += 1;
   return { beat: metro.beat, sub: metro.subTick, isBeat: false, accent: false };
 }
+function updateMetronomeDots() {
+  const m = APP.metronome;
+  const wrap = document.getElementById('metronome-dots');
+  if (!m || !wrap) return;
+  const dots = [];
+  for (let i = 0; i < (m.beatsPerBar || 4); i++) {
+    dots.push(`<div class="metro-dot ${i === m.beat ? 'metro-dot-active' : ''} ${i === 0 ? 'metro-dot-downbeat' : ''}"></div>`);
+  }
+  wrap.innerHTML = dots.join('');
+}
+
 function startMetronomeTicker() {
   const m = APP.metronome;
   if (!m) return;
@@ -873,10 +884,12 @@ function startMetronomeTicker() {
       AudioEngine.playClick(accent);
       m.countInLeft -= 1;
       if (m.countInLeft <= 0) { inCountIn = false; m.beat = -1; m.subTick = 0; }
+      updateMetronomeDots();
       delay = bpmToIntervalMs(m.bpm);
     } else {
       const tick = metronomeTick(m);
       AudioEngine.playClick(tick.accent);
+      updateMetronomeDots();
       delay = bpmToTickMs(m.bpm, m.subdivision);
     }
     m.timerId = setTimeout(step, delay);
@@ -892,6 +905,8 @@ function startMetronome() {
   APP.metronome.running = true;
   APP.metronome.taps = [];
   startMetronomeTicker();
+  renderToolWidget();
+  updateMetronomeDots();
 }
 function stopMetronome() {
   const m = APP.metronome;
@@ -1625,7 +1640,8 @@ function handleAction(action, el) {
       break;
 
     // ── Metronome ─────────────────────────────────────────────────────
-    case 'toggle-metronome': {
+    case 'toggle-metronome':
+    case 'metronome-toggle': {
       if (!APP.metronome) APP.metronome = createMetronome(80, 4);
       if (APP.metronome.running) {
         stopMetronome();
