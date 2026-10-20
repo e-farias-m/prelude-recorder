@@ -32,15 +32,30 @@ const localStorage = {
   removeItem(k) { delete store[k]; },
 };
 
-const sandbox = new Function('document', 'localStorage', 'window', 'navigator', `
+// Minimal stand-ins for the browser APIs the recording path touches, so the
+// start/stop/cleanup flow can be driven without a real microphone.
+const revoked = [];
+const URL = { createObjectURL: () => 'blob:fake', revokeObjectURL: (u) => revoked.push(u) };
+const Blob = class { constructor(chunks, opts) { this.chunks = chunks; this.opts = opts; } };
+const Audio = class { constructor(src) { this.src = src; Audio.last = this; } play() { return Promise.resolve(); } };
+const MediaRecorder = class {
+  constructor(stream) { this.stream = stream; this.state = 'inactive'; }
+  start() { this.state = 'recording'; }
+  stop() { this.state = 'inactive'; if (this.onstop) this.onstop(); }
+};
+
+const sandbox = new Function('document', 'localStorage', 'window', 'navigator', 'MediaRecorder', 'URL', 'Blob', 'Audio', `
 ${read('curriculum.js')}
 ${read('graphics.js')}
 ${read('i18n.js')}
 ${read('audio.js')}
 ${read('app.js')}
-return { renderSelectScreen, CURRICULUM, APP, INSTRUMENT_ORDER, getLang, setLang, t };
+return { renderSelectScreen, CURRICULUM, APP, INSTRUMENT_ORDER, getLang, setLang, t,
+  listenEnabled, listenFeedback, canRecord, startRecording, stopRecording,
+  playRecording, cleanupRecording, renderPlayPhase, getLesson };
 `);
-const api = sandbox(document, localStorage, {}, { language: 'en-US' });
+const api = sandbox(document, localStorage, {}, { language: 'en-US' },
+  MediaRecorder, URL, Blob, Audio);
 
 let pass = 0, fail = 0;
 const failures = [];
@@ -56,5 +71,80 @@ check(api.getLang() === 'en' || api.getLang() === 'pt', 'getLang returns valid l
 
 check(Array.isArray(api.INSTRUMENT_ORDER) && api.INSTRUMENT_ORDER.length > 0, 'INSTRUMENT_ORDER populated');
 
-console.log(`${pass} passed, ${fail} failed`);
-if (fail) { failures.forEach(f => console.log('  FAIL:', f)); process.exit(1); }
+// ── Listen & match: pitch feedback ─────────────────────────────────────────
+// The mic readout reports the nearest note and how far off it is, with a plain
+// verdict against the target. All recorder instruments are fipple flutes, so
+// every note lesson is eligible.
+{
+  check(api.listenEnabled('soprano-recorder') === true,
+    'soprano recorder has listen & match enabled');
+  check(api.listenEnabled('does-not-exist') === false,
+    'an unknown instrument has listen & match disabled');
+
+  const target = 523.25; // soprano recorder C5
+  const hz = centsOff => target * Math.pow(2, centsOff / 1200);
+
+  check(api.listenFeedback(target, -1).state === 'listening',
+    'no signal reads as listening');
+  check(api.listenFeedback(target, hz(20)).state === 'match',
+    'a near-perfect pitch matches');
+  check(api.listenFeedback(target, hz(-20)).state === 'match',
+    'a slightly flat pitch still matches');
+  check(api.listenFeedback(target, hz(75)).state === 'close',
+    'a pitch just outside the match window reads as close');
+  check(api.listenFeedback(target, hz(1200)).state === 'octave',
+    'the same note an octave up reads as octave, not a match');
+  check(api.listenFeedback(target, hz(250)).state === 'off',
+    'a different note reads as off');
+}
+
+// ── Recording lifecycle ────────────────────────────────────────────────────
+// canRecord depends on the injected MediaRecorder/getUserMedia; the playlist
+// renders a record panel only when both are present.
+{
+  check(typeof api.canRecord() === 'boolean', 'canRecord returns a boolean');
+
+  const soprano = api.getLesson('soprano-recorder', 0);
+  const inst = api.CURRICULUM['soprano-recorder'];
+  api.APP.instrumentId = 'soprano-recorder';
+  api.APP.lessonIndex = 0;
+  api.APP.phase = 'play';
+  const playHtml = api.renderPlayPhase(inst, soprano);
+  check(playHtml.includes('listen-panel') || playHtml.includes('listen-card'),
+    'a recorder note lesson renders the listen panel');
+  check(playHtml.includes('data-action="listen-toggle"'),
+    'the play phase offers a listen toggle');
+}
+
+// ── Recording lifecycle ────────────────────────────────────────────────────
+// With MediaRecorder and getUserMedia present, a take start/stop/cleanup cycle
+// leaves no live stream and releases the blob URL.
+{
+  const fakeStream = { getTracks: () => [{ stop() {} }] };
+  const nav = { mediaDevices: { getUserMedia: () => Promise.resolve(fakeStream) } };
+  const api2 = sandbox(document, localStorage, {}, nav, MediaRecorder, URL, Blob, Audio);
+  api2.APP.instrumentId = 'soprano-recorder';
+  api2.APP.lessonIndex = 0;
+
+  check(api2.canRecord() === true,
+    'canRecord is true when MediaRecorder and getUserMedia are available');
+
+  api2.startRecording().then(() => {
+    check(!!api2.APP.recorder, 'starting a recording tracks the live recorder');
+    api2.stopRecording();
+    check(!api2.APP.recorder, 'stopping clears the live recorder');
+    check(typeof api2.APP.recordingUrl === 'string' && api2.APP.recordingUrl.length > 0,
+      'stopping produces a playable recording URL');
+    api2.playRecording();
+    check(Audio.last && Audio.last.src === api2.APP.recordingUrl,
+      'playing the take feeds its URL to the audio element');
+    api2.cleanupRecording();
+    check(!api2.APP.recordingUrl, 'cleanup releases the recording URL');
+    finish();
+  });
+}
+
+function finish() {
+  console.log(`${pass} passed, ${fail} failed`);
+  if (fail) { failures.forEach(f => console.log('  FAIL:', f)); process.exit(1); }
+}

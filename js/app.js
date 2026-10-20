@@ -56,9 +56,18 @@ const APP = {
   tutorialIndex: 0,
   sprint: null,
   sprintTimer: null,
+  // Microphone capture on the play phase. `recorder` holds the live
+  // MediaRecorder while a take is in progress; `recordingUrl` holds the blob
+  // URL of the finished take so it can be played back and compared.
+  recorder: null,
+  recordingUrl: null,
+  // Listen & match: the mic-driven pitch readout shown under the play phase.
+  // Holds the running AudioContext, stream and animation frame alongside the
+  // latest detected frequency.
+  listen: null,
 };
 
-const VERSION = '1.0.1';
+const VERSION = '1.0.2';
 const STORAGE_KEY = 'preludioRecorderProgress';
 const NAME_KEY = 'preludioRecorderName';
 const INSTRUMENT_KEY = 'preludioRecorderInstrument';
@@ -1626,6 +1635,14 @@ function renderLessonScreen() {
 
   const isSong = isSongLesson(lesson);
 
+  // The mic belongs to the play phase alone. Whenever the lesson moves on, or
+  // the screen is drawn for anything but play, the capture is released so the
+  // browser's recording indicator never lingers.
+  if (APP.phase !== 'play') {
+    if (APP.listen) stopListen();
+    if (APP.recorder || APP.recordingUrl) cleanupRecording();
+  }
+
   let body = '';
   if (isReview && APP.phase === 'present') {
     APP.phase = 'quiz';
@@ -1903,6 +1920,63 @@ function renderQuizPhase(inst, lesson) {
     </div>`;
 }
 
+function renderListenPanel(lesson) {
+  const l = APP.listen;
+
+  if (!l) {
+    return `
+      <div class="listen-panel">
+        <div class="listen-intro">
+          <div class="listen-intro-title">\u{1F3A7} Listen &amp; match</div>
+          <div class="listen-intro-sub">Turn on your microphone and the app shows the pitch it hears \u2014 play ${escapeHtml(t(lesson.noteName))} and watch how close you land.</div>
+        </div>
+        <button class="btn btn-secondary btn-wide" data-action="listen-toggle">Start listening</button>
+      </div>`;
+  }
+
+  const status = LISTEN_MESSAGES[l.state] || LISTEN_MESSAGES.listening;
+  return `
+    <div class="listen-card listen-${l.state}" id="listen-card">
+      <div class="listen-target">Listening for <strong>${escapeHtml(t(lesson.noteName))}</strong></div>
+      <div class="listen-status" id="listen-status">${status}</div>
+      <div class="listen-detected">
+        <span class="listen-detected-note" id="listen-detected">\u2014</span>
+        <span class="listen-cents" id="listen-cents">Listening\u2026</span>
+      </div>
+      <button class="btn btn-ghost" data-action="listen-toggle">Stop listening</button>
+    </div>`;
+}
+
+function renderRecordPanel(lesson) {
+  if (!canRecord()) return '';
+  const recording = !!APP.recorder;
+  let controls;
+  let status;
+  if (recording) {
+    controls = `<button class="btn btn-secondary btn-wide" data-action="record-toggle">⏹ Stop recording</button>`;
+    status = 'Recording — play now, then tap Stop.';
+  } else if (APP.recordingUrl) {
+    controls = `
+      <div class="record-actions">
+        <button class="btn btn-secondary" data-action="play-recording">▶ My take</button>
+        <button class="btn-hear" data-action="hear-note"><span class="hear-icon">🔊</span> Model</button>
+        <button class="btn btn-ghost" data-action="record-toggle">Re-record</button>
+      </div>
+      <button class="btn-ghost" data-action="discard-recording">Delete recording</button>`;
+    status = 'Listen back, then compare with the model.';
+  } else {
+    controls = `
+      <button class="btn btn-secondary btn-wide" data-action="record-toggle">⏺ Record yourself</button>
+      <button class="btn-hear" data-action="hear-note"><span class="hear-icon">🔊</span> Hear the model</button>`;
+    status = 'Record yourself and compare with the model.';
+  }
+  return `
+    <div class="record-panel">
+      <div class="record-status" id="record-status">${status}</div>
+      <div class="record-controls">${controls}</div>
+    </div>`;
+}
+
 function renderPlayPhase(inst, lesson) {
   const fingeringSvg = Graphics.fingeringSVG(inst.fingeringType, lesson.fingeringState, inst.accentColor, 120);
   const cells = [1, 2, 3, 4].map(n => `<div class="beat-cell count-in" data-beat="${n}"><span class="beat-num">${n}</span></div>`).join('');
@@ -1910,6 +1984,8 @@ function renderPlayPhase(inst, lesson) {
   const metActive = APP.metronome ? APP.metronome.running : false;
   const metBpm = APP.metronome ? APP.metronome.bpm : 80;
   const metCls = metActive ? 'btn btn-secondary met-active' : 'btn btn-secondary';
+
+  const isNoteLesson = !isSongLesson(lesson) && !isReviewLesson(lesson);
 
   return `
     <div class="lesson-body">
@@ -1922,6 +1998,8 @@ function renderPlayPhase(inst, lesson) {
         <div class="beat-grid">${cells}${playCell}</div>
         <div class="play-status" id="play-status">Tap Start, then play along on the count.</div>
         <button class="btn btn-secondary" data-action="play-start" id="play-start-btn">▶ Start count-in</button>
+        ${renderRecordPanel(lesson)}
+        ${isNoteLesson && listenEnabled(APP.instrumentId) ? renderListenPanel(lesson) : ''}
       </div>
       <div class="metronome-controls">
         <button class="${metCls}" data-action="toggle-metronome">${metActive ? '⏹' : '🎵'} Metronome</button>
@@ -2788,6 +2866,25 @@ function handleAction(action, el) {
       break;
     }
 
+    case 'record-toggle':
+      if (APP.recorder) stopRecording();
+      else startRecording();
+      break;
+
+    case 'play-recording':
+      playRecording();
+      break;
+
+    case 'discard-recording':
+      cleanupRecording();
+      render();
+      break;
+
+    case 'listen-toggle':
+      if (APP.listen) { stopListen(); render(); }
+      else startListen();
+      break;
+
     case 'goto-quiz':
       APP.phase = 'quiz';
       APP.quiz = null;
@@ -2883,6 +2980,8 @@ function handleAction(action, el) {
     }
 
     case 'play-confirm': {
+      stopListen();
+      cleanupRecording();
       const mistakes = (APP.quizQueue || []).reduce((sum, item) => sum + item.wrongIds.length, 0);
       const stars = mistakes === 0 ? 3 : (mistakes <= 2 ? 2 : 1);
       const xp = 10 + (stars * 5);
@@ -2906,6 +3005,8 @@ function handleAction(action, el) {
     }
 
     case 'finish-lesson':
+      stopListen();
+      cleanupRecording();
       APP.reviewQueue = null;
       APP.reviewIndex = 0;
       APP.reviewCorrect = 0;
@@ -3115,6 +3216,197 @@ document.addEventListener('input', (e) => {
 
 
 // ── TUNER (pitch detection) ─────────────────────────────────────────────
+// ── MICROPHONE RECORDING ────────────────────────────────────────────────
+// Records the student so they can compare their own sound against the model.
+// Degrades gracefully: if the microphone or MediaRecorder API is unavailable,
+// the record controls simply never render.
+function canRecord() {
+  return !!(typeof navigator !== 'undefined' && navigator.mediaDevices &&
+    typeof navigator.mediaDevices.getUserMedia === 'function' &&
+    typeof MediaRecorder !== 'undefined');
+}
+
+function startRecording() {
+  if (!canRecord() || APP.recorder) return;
+  // One microphone stream at a time: listening stops before a take begins.
+  stopTuner();
+  stopListen();
+  return navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    const chunks = [];
+    const mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      if (APP.recordingUrl) URL.revokeObjectURL(APP.recordingUrl);
+      const blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      APP.recordingUrl = URL.createObjectURL(blob);
+      APP.recorder = null;
+      render();
+    };
+    mediaRecorder.start();
+    APP.recorder = { mediaRecorder, stream };
+    render();
+  }).catch(() => showToast('Microphone unavailable.'));
+}
+
+function stopRecording() {
+  const r = APP.recorder;
+  if (r && r.mediaRecorder.state !== 'inactive') r.mediaRecorder.stop();
+}
+
+function playRecording() {
+  if (!APP.recordingUrl) return;
+  const audio = new Audio(APP.recordingUrl);
+  audio.play().catch(() => showToast('Could not play the recording.'));
+}
+
+function cleanupRecording() {
+  if (APP.recorder) {
+    try { stopRecording(); } catch (e) { /* ignore */ }
+    APP.recorder = null;
+  }
+  if (APP.recordingUrl) {
+    URL.revokeObjectURL(APP.recordingUrl);
+    APP.recordingUrl = null;
+  }
+}
+
+// ── LISTEN & MATCH ──────────────────────────────────────────────────────
+// The mic reads the pitch a student plays and shows the closest note and how
+// far off it is, so a beginner gets the same instant reading a teacher would
+// give. Nothing is synthesised: the app only reports what it heard. Every
+// recorder is a fipple flute with clean pitch, so all note lessons qualify.
+function listenEnabled(instrumentId) {
+  const inst = getInstrument(instrumentId);
+  return !!(inst && inst.fingeringType === 'recorder');
+}
+
+// How close to the target counts as the right note. Kept generous because
+// beginner recorder tone wobbles; the cents readout shows the exact number.
+const LISTEN_MATCH_CENTS = 50;
+
+// Pure mapping from a detected frequency to a plain reading for the target
+// frequency, so the UI can be tested without a microphone:
+//   listening - no usable signal yet
+//   match     - the right note, close enough to call it
+//   close     - near the target note but a little off
+//   octave    - the right note name in the wrong octave
+//   off       - a different note
+function listenFeedback(targetFreq, freq) {
+  if (!freq || freq <= 0 || !isFinite(freq)) return { state: 'listening', cents: null };
+  if (!targetFreq || targetFreq <= 0) return { state: 'off', cents: null };
+  const cents = 1200 * Math.log2(freq / targetFreq);
+  if (Math.abs(cents) <= LISTEN_MATCH_CENTS) return { state: 'match', cents };
+  if (Math.abs(cents) <= LISTEN_MATCH_CENTS * 2) return { state: 'close', cents };
+  for (const factor of [2, 0.5, 4, 0.25]) {
+    const octCents = 1200 * Math.log2(freq / (targetFreq * factor));
+    if (Math.abs(octCents) <= LISTEN_MATCH_CENTS) {
+      return { state: 'octave', cents, octave: factor > 1 ? 'above' : 'below' };
+    }
+  }
+  return { state: 'off', cents };
+}
+
+function stopListen() {
+  const l = APP.listen;
+  if (!l) return;
+  if (l.frame) cancelAnimationFrame(l.frame);
+  if (l.stream) l.stream.getTracks().forEach(tr => tr.stop());
+  if (l.ctx && l.ctx.close) l.ctx.close().catch(() => {});
+  APP.listen = null;
+}
+
+function startListen() {
+  const instrumentId = APP.instrumentId;
+  if (!listenEnabled(instrumentId)) return;
+  const lesson = getLesson(instrumentId, APP.lessonIndex);
+  if (!lesson || isSongLesson(lesson) || isReviewLesson(lesson) || !lesson.freq) return;
+  if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+    showToast('Microphone not available here.');
+    return;
+  }
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) { showToast('Audio analysis not supported here.'); return; }
+
+  stopTuner();
+  // A live take must stop before the analyser opens a second mic stream, but a
+  // finished take is left alone so listening does not throw away the student's
+  // recording. The take simply hangs onto its blob URL for later playback.
+  if (APP.recorder) stopRecording();
+  stopListen();
+
+  APP.listen = {
+    running: true, freq: -1, ctx: null, stream: null, frame: null,
+    targetId: lesson.id, targetFreq: lesson.freq, state: 'listening', cents: null,
+  };
+  const l = APP.listen;
+
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    if (!APP.listen || !APP.listen.running) { stream.getTracks().forEach(t => t.stop()); return; }
+    l.stream = stream;
+    l.ctx = new Ctx();
+    const source = l.ctx.createMediaStreamSource(stream);
+    const analyser = l.ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    source.connect(analyser);
+    const buf = new Float32Array(analyser.fftSize);
+    const loop = () => {
+      if (!APP.listen || !APP.listen.running) return;
+      analyser.getFloatTimeDomainData(buf);
+      const freq = detectPitch(buf, l.ctx.sampleRate);
+      l.freq = freq;
+      const fb = listenFeedback(l.targetFreq, freq);
+      l.state = fb.state;
+      l.cents = fb.cents;
+      updateListenReadout();
+      APP.listen.frame = requestAnimationFrame(loop);
+    };
+    loop();
+    render();
+  }).catch(() => {
+    stopListen();
+    showToast('Could not access the microphone.');
+    render();
+  });
+}
+
+const LISTEN_MESSAGES = {
+  listening: 'Play your note and hold it steady…',
+  match: 'That\u2019s the note \u2014 nice and steady.',
+  close: 'Almost \u2014 tweak your pitch a little.',
+  octave: 'Right note name, wrong octave.',
+  off: 'A different note than the one you\u2019re working on.',
+};
+
+function updateListenReadout() {
+  const l = APP.listen;
+  if (!l) return;
+  const card = document.getElementById('listen-card');
+  const statusEl = document.getElementById('listen-status');
+  const detectedEl = document.getElementById('listen-detected');
+  const centsEl = document.getElementById('listen-cents');
+  if (!card || !statusEl) return;
+
+  card.className = 'listen-card listen-' + l.state;
+  statusEl.textContent = LISTEN_MESSAGES[l.state] || LISTEN_MESSAGES.listening;
+
+  // The big readout is the best approximation of what the mic actually heard:
+  // the nearest note in the instrument's range, and how far the played pitch
+  // sits from that note. The status line above carries the verdict against the
+  // lesson's target note.
+  const near = l.freq > 0 ? freqToNoteInfo(l.freq, getTunerNoteLessons()) : null;
+  if (detectedEl) detectedEl.textContent = near ? t_noteName(near.note) : '\u2014';
+  if (centsEl) {
+    if (!near) centsEl.textContent = l.state === 'listening' ? 'Listening\u2026' : '\u2014';
+    else centsEl.textContent = centsLabel(near.cents);
+  }
+}
+
+function centsLabel(cents) {
+  const r = Math.round(cents);
+  return (r > 0 ? '+' : '') + r + ' cents';
+}
+
 function detectPitch(buffer, sampleRate) {
   if (!buffer || buffer.length < 2 || !sampleRate) return -1;
   const size = buffer.length;
