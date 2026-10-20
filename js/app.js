@@ -62,6 +62,36 @@ function getSavedInstrument() { return localStorage.getItem(INSTRUMENT_KEY) || '
 function setSavedInstrument(id) { localStorage.setItem(INSTRUMENT_KEY, id); }
 function clearSavedInstrument() { localStorage.removeItem(INSTRUMENT_KEY); }
 
+// First-sound guide has been seen per instrument (onboarding CTA state).
+const FIRST_SOUND_KEY = 'preludeRecorderFirstSound';
+function getFirstSoundSeenMap() {
+  try { return JSON.parse(localStorage.getItem(FIRST_SOUND_KEY) || '{}') || {}; }
+  catch (e) { return {}; }
+}
+function getFirstSoundSeen(instrumentId) { return !!getFirstSoundSeenMap()[instrumentId]; }
+function markFirstSoundSeen(instrumentId) {
+  const seen = getFirstSoundSeenMap();
+  seen[instrumentId] = true;
+  localStorage.setItem(FIRST_SOUND_KEY, JSON.stringify(seen));
+}
+
+// Recorders are all fipple flutes — one shared first-sound guide.
+const FIRST_SOUND_CONTENT = {
+  recorder: {
+    emoji: '\u{1F3B5}',
+    title: 'Make your first sound',
+    intro: 'On a recorder the sound starts with a gentle stream of air across the window — not by blowing hard.',
+    steps: [
+      'Hold the recorder level, lips soft around the mouthpiece.',
+      'Cover every hole fully with the pads of your fingers — no gaps.',
+      'Take a small, warm breath — like fogging up a mirror.',
+      'Blow a thin, steady stream of air. Not too hard!',
+      'Listen for a clear, steady tone — that is your sound.',
+    ],
+    tip: 'Squeaking? Check for leaking finger holes and ease off the air. No sound? Blow slightly harder and make sure the window is not blocked.',
+  },
+};
+
 // ── ANALYTICS (local) ─────────────────────────────────────────────────────────
 const ANALYTICS_KEY = 'preludeRecorderAnalytics';
 
@@ -899,12 +929,95 @@ function renderReferenceOverlay() {
 }
 
 // ── RENDER: MAP SCREEN ─────────────────────────────────────────────────────
+function renderPlanCard(instrumentId) {
+  const plan = getTodayPlan(instrumentId);
+  if (!plan.items.length) return '';
+  const done = plan.items.filter(i => i.done).length;
+  const total = plan.items.length;
+  const rows = plan.items.map(it => {
+    let label = 'Practice';
+    if (it.type === 'note') {
+      const n = findLessonById(instrumentId, it.targetId);
+      label = 'Review ' + (n ? t(n.noteName) : 'note');
+    } else if (it.type === 'song') {
+      const s = findLessonById(instrumentId, it.targetId);
+      label = 'Play ' + (s ? t(s.noteName) : 'song');
+    } else if (it.type === 'sprint') {
+      label = (it.mode === SPRINT_MODES.FINGER ? 'Finger gym' : 'Sight-reading') + ' sprint';
+    }
+    const icon = it.type === 'sprint' ? '\u{26A1}' : '\u{1F3B5}';
+    return `
+      <div class="plan-item ${it.done ? 'plan-item-done' : ''}">
+        <div class="plan-item-icon">${it.done ? '\u2713' : icon}</div>
+        <div class="plan-item-text">
+          <div class="plan-item-name">${escapeHtml(label)}</div>
+          <div class="plan-item-reason">${escapeHtml(it.reason || '')}</div>
+        </div>
+        ${it.done
+          ? '<div class="plan-item-tag">Done</div>'
+          : `<button class="btn btn-secondary plan-item-btn" data-action="plan-start" data-item="${it.id}">Start</button>`}
+      </div>`;
+  }).join('');
+  const allDone = done === total;
+  return `
+    <div class="plan-card ${allDone ? 'plan-card-done' : ''}">
+      <div class="plan-header">
+        <div class="plan-title">Today\u2019s Plan</div>
+        <div class="plan-count">${done}/${total}</div>
+      </div>
+      <div class="plan-items">${rows}</div>
+      ${allDone ? '<div class="plan-done-note">\u{1F389} All done \u2014 nice work!</div>' : ''}
+    </div>`;
+}
+
+// ── RENDER: FIRST SOUND ────────────────────────────────────────────────────\u2500\u2500\u2500\u2500
+function renderFirstSoundScreen() {
+  const inst = getInstrument(APP.instrumentId);
+  const content = FIRST_SOUND_CONTENT.recorder;
+  const seen = getFirstSoundSeen(APP.instrumentId);
+  const firstNote = getNoteLessons(APP.instrumentId)[0];
+  const steps = content.steps.map((step, i) => `
+    <li class="first-sound-step">
+      <span class="first-sound-step-num">${i + 1}</span>
+      <span class="first-sound-step-text">${escapeHtml(step)}</span>
+    </li>`).join('');
+  const hearBtn = firstNote
+    ? `<button class="btn btn-secondary btn-wide" data-action="first-sound-hear" style="margin-top:4px">\u{1F50A} Hear a target note</button>`
+    : '';
+
+  return `
+    <div class="screen active first-sound-screen">
+      <div class="app-header">
+        <button class="header-back" data-action="close-first-sound">\u2190</button>
+        <div class="header-title">First sound \u00b7 ${inst.shortName}</div>
+      </div>
+      <div class="lesson-body">
+        <div class="first-sound-hero">${content.emoji}</div>
+        <div class="first-sound-title">${escapeHtml(content.title)}</div>
+        <div class="first-sound-intro">${escapeHtml(content.intro)}</div>
+        <ol class="first-sound-steps">${steps}</ol>
+        <div class="first-sound-tip"><strong>Tip</strong> ${escapeHtml(content.tip)}</div>
+        ${hearBtn}
+        <div class="action-bar">
+          <button class="btn btn-primary btn-wide" data-action="first-sound-done">${seen ? 'Back to my path' : 'Got it \u2014 let\u2019s play!'}</button>
+        </div>
+      </div>
+    </div>`;
+}
+
 function renderMapScreen() {
   const inst = getInstrument(APP.instrumentId);
   const prog = getInstrumentProgress(APP.instrumentId);
   const total = inst.lessons.length;
   const doneCount = inst.lessons.filter(l => prog.completed[l.id]).length;
   const pct = total ? Math.round((doneCount / total) * 100) : 0;
+  const learnedCount = getLearnedNotes(APP.instrumentId).length;
+  const practiceReady = learnedCount >= 2;
+  const bestSight = getSprintBest(APP.instrumentId, SPRINT_MODES.SIGHT);
+  const bestFinger = getSprintBest(APP.instrumentId, SPRINT_MODES.FINGER);
+  const bestLine = practiceReady && (bestSight || bestFinger)
+    ? `<div class="practice-banner-best">Best: ${bestSight} names · ${bestFinger} fingerings</div>`
+    : '';
 
   const nodes = inst.lessons.map((lesson, i) => {
     const unlocked = isLessonUnlocked(APP.instrumentId, i);
@@ -912,9 +1025,9 @@ function renderMapScreen() {
     const isReview = isReviewLesson(lesson);
 
     let stateCls = 'locked';
-    let inner = `<span class="map-node-lock">🔒</span>`;
+    let inner = `<span class="map-node-lock">\u{1F512}</span>`;
     let masteryHtml = '';
-    let label = isReview ? lesson.noteName : isSongLesson(lesson) ? lesson.noteName : lesson.noteName;
+    let label = t(lesson.noteName);
 
     if (isReview && unlocked && completed) {
       stateCls = 'review-done';
@@ -965,11 +1078,27 @@ function renderMapScreen() {
         </div>
       </div>
       <div class="map-body">
+        ${renderPlanCard(APP.instrumentId)}
+        <div class="first-sound-cta${getFirstSoundSeen(APP.instrumentId) ? ' first-sound-cta-seen' : ''}" data-action="open-first-sound">
+          <div class="first-sound-cta-emoji">${FIRST_SOUND_CONTENT.recorder.emoji}</div>
+          <div class="first-sound-cta-text">
+            <div class="first-sound-cta-title">${getFirstSoundSeen(APP.instrumentId) ? 'Warm up your sound' : 'New here? Make your first sound'}</div>
+            <div class="first-sound-cta-sub">${getFirstSoundSeen(APP.instrumentId) ? 'Breathing and tone reminders before you play.' : 'A quick guide to your first sound, before note one.'}</div>
+          </div>
+          <div class="first-sound-cta-arrow">›</div>
+        </div>
+        <div class="practice-banner ${practiceReady ? '' : 'practice-banner-locked'}">
+          <div class="practice-banner-text">
+            <div class="practice-banner-title">Practice drills</div>
+            <div class="practice-banner-sub">${practiceReady ? 'Timed games to build speed and confidence.' : 'Learn 2 notes to unlock timed drills.'}</div>
+            ${bestLine}
+          </div>
+          <button class="btn btn-primary" data-action="open-practice" ${practiceReady ? '' : 'disabled'}>Practice</button>
+        </div>
         <div class="map-unit-label">Unit 1 · First Notes</div>
         <div class="map-path">${nodes}</div>
         ${doneCount > 0 ? `<button class="btn btn-secondary game-launch-btn" data-action="open-game" style="margin-top:20px;width:100%">🎯 Sight Reading Challenge</button>` : ''}
       </div>
-
     </div>`;
 }
 
@@ -1533,6 +1662,7 @@ function render() {
   const app = document.getElementById('app');
   if (APP.screen === 'select') app.innerHTML = renderSelectScreen();
   else if (APP.screen === 'map') app.innerHTML = renderMapScreen();
+  else if (APP.screen === 'first-sound') app.innerHTML = renderFirstSoundScreen();
   else if (APP.screen === 'lesson') app.innerHTML = renderLessonScreen();
   else if (APP.screen === 'settings') app.innerHTML = renderSettingsScreen();
   else if (APP.screen === 'analytics') app.innerHTML = renderAnalyticsScreen();
@@ -1844,6 +1974,44 @@ function handleAction(action, el) {
 
       APP.screen = 'lesson';
       render();
+      break;
+    }
+
+    case 'plan-start': {
+      const item = getTodayPlan(APP.instrumentId).items.find(i => i.id === el.dataset.item);
+      if (!item) return;
+      if (item.type === 'sprint') {
+        if (typeof startSprint === 'function') startSprint(item.mode);
+        else showToast('Practice drills are coming soon.');
+        break;
+      }
+      const idx = CURRICULUM[APP.instrumentId].lessons
+        .indexOf(findLessonById(APP.instrumentId, item.targetId));
+      if (idx < 0) return;
+      handleAction('open-lesson', { dataset: { index: String(idx) } });
+      break;
+    }
+
+    case 'open-first-sound':
+      APP.screen = 'first-sound';
+      render();
+      break;
+
+    case 'close-first-sound':
+      APP.screen = 'map';
+      render();
+      break;
+
+    case 'first-sound-done':
+      markFirstSoundSeen(APP.instrumentId);
+      APP.screen = 'map';
+      render();
+      break;
+
+    case 'first-sound-hear': {
+      const inst = getInstrument(APP.instrumentId);
+      const note = getNoteLessons(APP.instrumentId)[0];
+      if (note) AudioEngine.playInstrumentNote(note.freq, inst.fingeringType, 1.2);
       break;
     }
 
