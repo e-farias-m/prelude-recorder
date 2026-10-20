@@ -105,25 +105,357 @@ function showNamePrompt() {
   input.addEventListener('keydown', e => { if (e.key === 'Enter') submitName(); });
 }
 
-// ── STREAK TRACKING ───────────────────────────────────────────────────────
-const STREAK_KEY = 'preludeRecorderStreak';
+// ── PRACTICE SPRINTS ───────────────────────────────────────────────────────
+const SPRINT_SECONDS = 30;
+const SPRINT_MODES = {
+  SIGHT: 'sight',    // See a note on the staff, name it
+  FINGER: 'finger',  // See a note name, pick its fingering
+};
 
-function getStreak() {
-  try { return JSON.parse(localStorage.getItem(STREAK_KEY)) || { count: 0, lastDate: null }; }
-  catch { return { count: 0, lastDate: null }; }
+// ── MOTIVATION (streak, practice minutes, levels, badges) ──────────────────
+const MOTIVATION_KEY = 'preludeRecorderMotivation';
+const MAX_SESSION_SECONDS = 30 * 60; // ignore implausible idle stretches
+
+function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+function todayKey(d = new Date()) {
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
 }
 
-function saveStreak(s) { localStorage.setItem(STREAK_KEY, JSON.stringify(s)); }
+function loadMotivation() {
+  try {
+    const raw = localStorage.getItem(MOTIVATION_KEY);
+    APP.motivation = raw ? JSON.parse(raw) : null;
+  } catch (e) { APP.motivation = null; }
+  if (!APP.motivation || typeof APP.motivation !== 'object') APP.motivation = {};
+  if (!APP.motivation.days) APP.motivation.days = {};
+  if (!APP.motivation.badges) APP.motivation.badges = {};
+  return APP.motivation;
+}
 
-function updateStreak() {
-  const s = getStreak();
-  const today = new Date().toISOString().slice(0, 10);
-  if (s.lastDate === today) return s.count;
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  s.count = s.lastDate === yesterday ? s.count + 1 : 1;
-  s.lastDate = today;
-  saveStreak(s);
-  return s.count;
+function getMotivation() {
+  return APP.motivation || loadMotivation();
+}
+
+function saveMotivation() {
+  try {
+    localStorage.setItem(MOTIVATION_KEY, JSON.stringify(APP.motivation));
+  } catch (e) { /* storage unavailable — fail silently */ }
+}
+
+// Records `seconds` of practice on today's date.
+function addPracticeSeconds(seconds) {
+  const m = getMotivation();
+  const k = todayKey();
+  m.days[k] = (m.days[k] || 0) + seconds;
+  saveMotivation();
+  return m.days[k];
+}
+
+function getTotalPracticeSeconds() {
+  const m = getMotivation();
+  return Object.values(m.days).reduce((sum, s) => sum + (s || 0), 0);
+}
+
+// Number of consecutive days (ending today or yesterday) with any practice.
+function getCurrentStreak(now = new Date()) {
+  const m = getMotivation();
+  const has = d => (m.days[todayKey(d)] || 0) > 0;
+  const cursor = new Date(now);
+  if (!has(cursor)) cursor.setDate(cursor.getDate() - 1); // streak survives until today ends
+  let streak = 0;
+  while (has(cursor)) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
+function getTotalXp() {
+  return Object.values(APP.progress).reduce((sum, p) => sum + (p.xp || 0), 0);
+}
+
+function getLevel(xp = getTotalXp()) {
+  return Math.floor(xp / 100) + 1;
+}
+
+function getAvatar(level = getLevel()) {
+  if (level >= 12) return '\u{1F451}'; // crown
+  if (level >= 8) return '\u{1F3C5}';  // medal
+  if (level >= 5) return '\u{1F3BA}';  // brass
+  if (level >= 3) return '\u{1F3B6}';  // notes
+  return '\u{1F331}';                  // seedling
+}
+
+const BADGES = [
+  { id: 'first-steps', icon: '\u{1F331}', name: 'First Steps', desc: 'Complete your first lesson' },
+  { id: 'first-song', icon: '\u{1F3B5}', name: 'First Song', desc: 'Complete a song' },
+  { id: 'full-scale', icon: '\u{1F3BC}', name: 'Full Scale', desc: 'Learn every note on an instrument' },
+  { id: 'streak-3', icon: '\u{1F525}', name: 'On a Roll', desc: 'Practice 3 days in a row' },
+  { id: 'streak-7', icon: '\u{1F525}', name: 'Week Strong', desc: 'Practice 7 days in a row' },
+  { id: 'marathon', icon: '\u{23F1}', name: 'Marathon', desc: 'Practice for 30 minutes in total' },
+  { id: 'xp-500', icon: '\u{2B50}', name: 'Rising Star', desc: 'Earn 500 XP' },
+  { id: 'quick-fingers', icon: '\u{26A1}', name: 'Quick Fingers', desc: 'Score 15 in a Finger gym sprint' },
+  { id: 'plan-complete', icon: '\u{1F3AF}', name: 'Planner', desc: 'Finish a full practice plan' },
+];
+
+// Aggregate cross-instrument stats used for badges.
+function getStats() {
+  let notesCompleted = 0, songsCompleted = 0, fullScales = 0, bestFinger = 0;
+  for (const id of INSTRUMENT_ORDER) {
+    const prog = APP.progress[id];
+    if (!prog) continue;
+    let noteCount = 0, totalNotes = 0;
+    (CURRICULUM[id].lessons || []).forEach(l => {
+      if (!isSongLesson(l) && !isReviewLesson(l)) totalNotes++;
+      if (!prog.completed || !prog.completed[l.id]) return;
+      if (isSongLesson(l)) songsCompleted++;
+      else if (!isReviewLesson(l)) { notesCompleted++; noteCount++; }
+    });
+    if (totalNotes > 0 && noteCount >= totalNotes) fullScales++;
+    if (prog.sprints && prog.sprints[SPRINT_MODES.FINGER] > bestFinger) {
+      bestFinger = prog.sprints[SPRINT_MODES.FINGER];
+    }
+  }
+  return {
+    notesCompleted,
+    songsCompleted,
+    fullScales,
+    bestFinger,
+    streak: getCurrentStreak(),
+    totalSeconds: getTotalPracticeSeconds(),
+    xp: getTotalXp(),
+    plansCompleted: getMotivation().plansCompleted || 0,
+  };
+}
+
+function badgeEarned(id, stats) {
+  switch (id) {
+    case 'first-steps': return stats.notesCompleted >= 1;
+    case 'first-song': return stats.songsCompleted >= 1;
+    case 'full-scale': return stats.fullScales >= 1;
+    case 'streak-3': return stats.streak >= 3;
+    case 'streak-7': return stats.streak >= 7;
+    case 'marathon': return stats.totalSeconds >= 1800;
+    case 'xp-500': return stats.xp >= 500;
+    case 'quick-fingers': return stats.bestFinger >= 15;
+    case 'plan-complete': return stats.plansCompleted >= 1;
+    default: return false;
+  }
+}
+
+// Awards any newly-earned badges. Returns their definitions (optionally toasts).
+function evaluateBadges(opts = {}) {
+  const m = getMotivation();
+  const stats = getStats();
+  const newly = [];
+  BADGES.forEach(b => {
+    if (!m.badges[b.id] && badgeEarned(b.id, stats)) {
+      m.badges[b.id] = new Date().toISOString();
+      newly.push(b);
+    }
+  });
+  if (newly.length) {
+    saveMotivation();
+    if (opts.toast && typeof showToast === 'function') {
+      showToast(`${newly[0].icon} Badge unlocked: ${newly[0].name}`);
+    }
+  }
+  return newly;
+}
+
+function hasBadge(id) {
+  return !!getMotivation().badges[id];
+}
+
+// ── SESSION TIMING ─────────────────────────────────────────────────────────
+function startSession() {
+  if (APP.sessionStart) return;
+  APP.sessionStart = Date.now();
+}
+
+function endSession() {
+  if (!APP.sessionStart) return;
+  const seconds = Math.min(Math.round((Date.now() - APP.sessionStart) / 1000), MAX_SESSION_SECONDS);
+  APP.sessionStart = null;
+  if (seconds >= 5) addPracticeSeconds(seconds);
+  evaluateBadges({ toast: true });
+}
+
+// ── SKILLS (spaced repetition) ─────────────────────────────────────────────
+// Every answered question updates a per-note skill record. The daily plan is
+// regenerated from these skills, prioritising notes with low accuracy and
+// notes that have not been seen for a while (a light spaced-repetition model).
+function getSkill(instrumentId, noteId) {
+  const prog = getInstrumentProgress(instrumentId);
+  if (!prog.skills) prog.skills = {};
+  if (!prog.skills[noteId]) {
+    // Existing students predate skills tracking; seed from quiz mastery so
+    // their accuracy history isn't lost.
+    const mastery = prog.mastery[noteId] || 0;
+    prog.skills[noteId] = { correct: mastery, wrong: 0, streak: 0, lastSeen: 0 };
+  }
+  return prog.skills[noteId];
+}
+
+function recordSkill(instrumentId, noteId, correct) {
+  const s = getSkill(instrumentId, noteId);
+  if (correct) { s.correct++; s.streak = (s.streak || 0) + 1; }
+  else { s.wrong++; s.streak = 0; }
+  s.lastSeen = Date.now();
+  saveProgress();
+  return s;
+}
+
+function noteWeakness(instrumentId, noteId, now = Date.now()) {
+  const s = getSkill(instrumentId, noteId);
+  const attempts = s.correct + s.wrong;
+  const accuracy = attempts ? s.correct / attempts : 0.5;
+  const days = s.lastSeen ? (now - s.lastSeen) / 86400000 : 7;
+  const overdue = Math.min(days, 7) / 7;
+  return (1 - accuracy) * 0.7 + overdue * 0.3;
+}
+
+// Accuracy for display; null until the note has actually been attempted.
+function getNoteAccuracy(instrumentId, noteId) {
+  const s = getSkill(instrumentId, noteId);
+  const attempts = s.correct + s.wrong;
+  return { attempts, accuracy: attempts ? s.correct / attempts : null };
+}
+
+// The learned notes most in need of work, weakest first.
+function getWeakestNotes(instrumentId, count = 3) {
+  const now = Date.now();
+  return getLearnedNotes(instrumentId)
+    .map(l => ({
+      lesson: l,
+      weakness: noteWeakness(instrumentId, l.id, now),
+      ...getNoteAccuracy(instrumentId, l.id),
+    }))
+    .sort((a, b) => b.weakness - a.weakness)
+    .slice(0, count);
+}
+
+// Weighted pick that biases drills toward weaker notes without ever ignoring
+// the others (every note keeps a small floor weight).
+function pickWeightedNote(instrumentId, pool) {
+  if (!pool.length) return null;
+  const now = Date.now();
+  const weights = pool.map(l => 0.2 + noteWeakness(instrumentId, l.id, now));
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < pool.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return pool[i];
+  }
+  return pool[pool.length - 1];
+}
+
+// ── ADAPTIVE PRACTICE PLAN ─────────────────────────────────────────────────
+function generatePlan(instrumentId, now = Date.now()) {
+  const learned = getLearnedNotes(instrumentId);
+  const items = [];
+  if (learned.length === 0) return { date: todayKey(new Date(now)), items };
+
+  const ranked = learned
+    .map(l => ({ l, w: noteWeakness(instrumentId, l.id, now) }))
+    .sort((a, b) => b.w - a.w);
+
+  ranked.slice(0, learned.length >= 3 ? 2 : 1).forEach(({ l, w }) => {
+    items.push({
+      id: 'note:' + l.id,
+      type: 'note',
+      targetId: l.id,
+      reason: w >= 0.55 ? 'Shaky — needs review' : 'Keep it fresh',
+    });
+  });
+
+  if (learned.length >= 2) {
+    const sight = getSprintBest(instrumentId, SPRINT_MODES.SIGHT);
+    const finger = getSprintBest(instrumentId, SPRINT_MODES.FINGER);
+    const mode = finger <= sight ? SPRINT_MODES.FINGER : SPRINT_MODES.SIGHT;
+    items.push({ id: 'sprint:' + mode, type: 'sprint', mode, reason: 'Build speed' });
+  }
+
+  const inst = getInstrument(instrumentId);
+  const prog = getInstrumentProgress(instrumentId);
+  const songs = inst.lessons.filter(s =>
+    isSongLesson(s) && isLessonUnlocked(instrumentId, CURRICULUM[instrumentId].lessons.indexOf(s)));
+  const song = songs.find(s => !prog.completed[s.id]) || songs[0];
+  if (song) {
+    items.push({ id: 'song:' + song.id, type: 'song', targetId: song.id, reason: 'Apply your notes' });
+  }
+
+  return { date: todayKey(new Date(now)), items };
+}
+
+// Today's plan is generated once and then persists for the day, so checkboxes
+// and ordering stay stable across visits.
+function getTodayPlan(instrumentId, now = Date.now()) {
+  const prog = getInstrumentProgress(instrumentId);
+  const key = todayKey(new Date(now));
+  if (!prog.plan || prog.plan.date !== key) {
+    prog.plan = generatePlan(instrumentId, now);
+    saveProgress();
+  }
+  return prog.plan;
+}
+
+function isPlanComplete(instrumentId) {
+  const prog = getInstrumentProgress(instrumentId);
+  const items = prog.plan && prog.plan.items;
+  return !!items && items.length > 0 && items.every(i => i.done);
+}
+
+// Marks matching plan items done; when the whole plan is finished, awards bonus
+// XP and records it for the plan badge.
+function markPlanItemDone(instrumentId, type, target) {
+  const prog = APP.progress[instrumentId];
+  if (!prog || !prog.plan || !prog.plan.items) return;
+  let changed = false;
+  prog.plan.items.forEach(it => {
+    if (it.done) return;
+    const matches = it.type === type &&
+      (it.type === 'sprint' ? it.mode === target : it.targetId === target);
+    if (matches) { it.done = true; changed = true; }
+  });
+  if (!changed) return;
+  saveProgress();
+  if (prog.plan.items.every(i => i.done) && !prog.plan.completed) {
+    completePlan(instrumentId);
+  }
+}
+
+function completePlan(instrumentId) {
+  const prog = getInstrumentProgress(instrumentId);
+  if (!prog.plan || prog.plan.completed) return;
+  prog.plan.completed = true;
+  const bonus = 20;
+  prog.xp += bonus;
+  const m = getMotivation();
+  m.plansCompleted = (m.plansCompleted || 0) + 1;
+  saveMotivation();
+  saveProgress();
+  evaluateBadges({ toast: true });
+  showToast('\u{1F389} Plan complete! +' + bonus + ' XP');
+}
+
+// ── SPRINT PERSONAL BESTS ──────────────────────────────────────────────────
+// Personal best for a sprint mode is stored per instrument.
+function getSprintBest(instrumentId, mode) {
+  const prog = getInstrumentProgress(instrumentId);
+  return (prog.sprints && prog.sprints[mode]) || 0;
+}
+
+// Saves a new best if `score` beats it. Returns true when a record was set.
+function setSprintBest(instrumentId, mode, score) {
+  const prog = getInstrumentProgress(instrumentId);
+  if (!prog.sprints) prog.sprints = {};
+  if (score > (prog.sprints[mode] || 0)) {
+    prog.sprints[mode] = score;
+    saveProgress();
+    return true;
+  }
+  return false;
 }
 
 // ── QUIZ TYPES ────────────────────────────────────────────────────────────
@@ -172,6 +504,9 @@ function getInstrumentProgress(instrumentId) {
   }
   if (!APP.progress[instrumentId].mastery) {
     APP.progress[instrumentId].mastery = {};
+  }
+  if (!APP.progress[instrumentId].sprints) {
+    APP.progress[instrumentId].sprints = {};
   }
   return APP.progress[instrumentId];
 }
@@ -292,8 +627,8 @@ function renderSelectScreen() {
       </div>`;
   }).join('');
 
-  const streak = updateStreak();
-  const streakText = streak > 1 ? `${streak} day streak! 🔥` : 'Start your streak today!';
+  const streak = getCurrentStreak();
+  const streakText = streak > 1 ? `${streak} day streak! \u{1F525}` : 'Start your streak today!';
   const langIcon = `<button class="btn-icon" data-action="toggle-language" title="Language" style="background:none;border:none;cursor:pointer;font-size:14px;vertical-align:middle;margin-left:6px;">${getLang() === 'pt' ? 'PT' : 'EN'}</button>`;
   const themeIcon = `<button class="btn-icon" data-action="toggle-theme" title="Theme" style="background:none;border:none;cursor:pointer;font-size:14px;vertical-align:middle;margin-left:6px;">${getTheme() === 'light' ? '\u2600\uFE0F' : '\u{1F319}'}</button>`;
   const settingsIcon = `<button class="btn-icon settings-gear" data-action="open-settings" title="Settings" style="background:none;border:none;cursor:pointer;font-size:18px;vertical-align:middle;margin-left:6px;">⚙️</button>`;
@@ -352,7 +687,7 @@ function renderAnalyticsScreen() {
   const events = getAnalyticsEvents();
   const totalXp = events.reduce((s, e) => s + (e.xpGained || 0), 0);
   const lessonCount = events.length;
-  const streak = getStreak();
+  const streak = { count: getCurrentStreak() };
 
   const byInstrument = {};
   events.forEach(e => {
@@ -815,7 +1150,7 @@ function renderCompletePhase(inst, lesson) {
   const mastery = getNoteMastery(APP.instrumentId, lesson.id);
   const masteryLevel = getMasteryLevel(mastery);
   const masteryColor = getMasteryColor(masteryLevel);
-  const alreadyDone = !!APP.progress[APP.instrumentId]?.completed[lesson.id];
+  const alreadyDone = !!APP.completedBefore;
 
   const messages = {
     new: 'You got the basics down!',
@@ -1334,6 +1669,9 @@ function handleAction(action, el) {
     }
 
     case 'go-select':
+      stopMetronome();
+      stopTuner();
+      endSession();
       APP.screen = 'select';
       render();
       break;
@@ -1343,6 +1681,7 @@ function handleAction(action, el) {
       APP.lessonIndex = idx;
       const lesson = getLesson(APP.instrumentId, idx);
       APP.play = { running: false, hasPlayed: false, hasListened: false };
+      startSession();
 
       if (isSongLesson(lesson)) {
         APP.phase = 'present';
@@ -1459,8 +1798,10 @@ function handleAction(action, el) {
       if (tappedId === q.correctId) {
         q.answeredCorrectly = true;
         addNoteMastery(APP.instrumentId, q.correctId);
+        recordSkill(APP.instrumentId, q.correctId, true);
       } else {
         q.wrongIds.push(tappedId);
+        recordSkill(APP.instrumentId, q.correctId, false);
       }
       render();
       break;
@@ -1479,9 +1820,12 @@ function handleAction(action, el) {
         recordLessonComplete(lesson.id, 'song', xp, stars);
         const prog = getInstrumentProgress(APP.instrumentId);
         const prevStars = prog.completed[lesson.id] ? prog.completed[lesson.id].stars : 0;
+        APP.completedBefore = !!prog.completed[lesson.id];
         prog.completed[lesson.id] = { stars: Math.max(stars, prevStars) };
         prog.xp += xp;
         saveProgress();
+        markPlanItemDone(APP.instrumentId, 'song', lesson.id);
+        evaluateBadges({ toast: true });
         APP.phase = 'complete';
         render();
         return;
@@ -1540,9 +1884,12 @@ function handleAction(action, el) {
       const lesson = getLesson(APP.instrumentId, APP.lessonIndex);
       recordLessonComplete(lesson.id, 'lesson', xp, stars);
       const prevStars = prog.completed[lesson.id] ? prog.completed[lesson.id].stars : 0;
+      APP.completedBefore = !!prog.completed[lesson.id];
       prog.completed[lesson.id] = { stars: Math.max(stars, prevStars) };
       prog.xp += xp;
       saveProgress();
+      markPlanItemDone(APP.instrumentId, 'note', lesson.id);
+      evaluateBadges({ toast: true });
 
       APP.phase = 'complete';
       render();
@@ -1876,6 +2223,7 @@ function t_noteName(n) { return n.noteName || n.name || '?'; }
 initLang();
 applyTheme(getTheme());
 loadProgress();
+loadMotivation();
 if (!getStudentName()) showNamePrompt();
 render();
 
