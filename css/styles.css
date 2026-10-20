@@ -2610,7 +2610,7 @@ button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2
 
 
 
-/* ═══ RECORDER-SPECIFIC OVERRIDES (appended over Prelude for Band base) ═══ */
+/* ═══ RECORDER-SPECIFIC OVERRIDES (appended over Preludio Band base) ═══ */
 /* ── SONG LESSON ────────────────────────────────────────────────────────── */
 /* ── SONG LESSON ────────────────────────────────────────────────────────── */
 .song-score-card {

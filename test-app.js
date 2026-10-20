@@ -1,4 +1,4 @@
-// test-app.js — smoke tests for js/app.js (Prelude for Recorder)
+// test-app.js — smoke tests for js/app.js (Preludio Recorder)
 
 const fs = require('fs');
 const path = require('path');
@@ -49,7 +49,7 @@ function check(cond, msg) { if (cond) pass++; else { fail++; failures.push(msg);
 check(typeof api.renderSelectScreen === 'function', 'renderSelectScreen exists');
 const html = api.renderSelectScreen();
 check(typeof html === 'string' && html.length > 0, 'select screen renders');
-check(html.includes('Prelude'), 'select screen has title');
+check(html.includes('Preludio'), 'select screen has title');
 
 check(typeof api.getLang === 'function', 'getLang exists');
 check(api.getLang() === 'en' || api.getLang() === 'pt', 'getLang returns valid lang');

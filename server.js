@@ -102,7 +102,7 @@ function renderDashboard(sessions) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Prelude Analytics</title>
+  <title>Preludio Analytics</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: system-ui, sans-serif; background: #0E0D1C; color: #F0EBE8; margin: 0; padding: 24px; }
@@ -127,7 +127,7 @@ function renderDashboard(sessions) {
   </style>
 </head>
 <body>
-  <h1>Prelude for Recorder — Analytics</h1>
+  <h1>Preludio Recorder — Analytics</h1>
 
   <div class="cards-row">
     <div class="stat-card"><span class="stat-label">Total Students</span><span class="stat-value">${totalStudents}</span></div>
@@ -287,7 +287,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Prelude for Recorder v1.0.0 — http://localhost:${PORT}`);
+  console.log(`Preludio Recorder v1.0.0 — http://localhost:${PORT}`);
   console.log(`Analytics dashboard — http://localhost:${PORT}/dashboard`);
   console.log(`API — http://localhost:${PORT}/api/analytics`);
 });

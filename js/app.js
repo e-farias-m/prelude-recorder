@@ -7,7 +7,7 @@ if (typeof TRANSLATIONS === 'undefined') { var TRANSLATIONS = { en:{}, pt:{} }; 
 if (typeof LANG === 'undefined') { var LANG = 'en'; }
 
 // app.js
-// Application state machine and rendering for Prelude for Recorder.
+// Application state machine and rendering for Preludio Recorder.
 // Single delegated click listener drives all interaction via data-action.
 
 var CHORD_FREQS = {
@@ -143,7 +143,7 @@ function showNamePrompt() {
   overlay.innerHTML = `
     <div class="name-modal">
       <div class="name-modal-icon">🎵</div>
-      <div class="name-modal-title">Welcome to Prelude for Recorder!</div>
+      <div class="name-modal-title">Welcome to Preludio Recorder!</div>
       <div class="name-modal-sub">What's your name?</div>
       <input type="text" class="name-input" placeholder="Your name..." maxlength="50" autocomplete="off" />
       <button class="btn btn-primary btn-wide name-submit">Start practicing</button>
@@ -1160,7 +1160,7 @@ function renderSelectScreen() {
             <line x1="15" y1="22" x2="15" y2="5" stroke="#FF8C42" stroke-width="2.4"/>
             <path d="M15 5 Q24 6 24 14" stroke="#FF8C42" stroke-width="2.4" fill="none"/>
           </svg>
-          <span class="wordmark-text">Prelude <span>for Recorder</span></span>
+          <span class="wordmark-text">Preludio <span>Recorder</span></span>
         </div>
         <div class="select-headline">${headline}</div>
         <div class="select-sub">${sub}</div>
@@ -2261,7 +2261,7 @@ function runPlaySequence(inst, lesson, listenOnly) {
   function clearActive() { cells.forEach(c => c.classList.remove('active')); }
 
   if (listenOnly) {
-    // ── Listen phase: Prelude demonstrates the note ───────────────────
+    // ── Listen phase: Preludio demonstrates the note ───────────────────
     status.textContent = 'Listen to how it sounds...';
     [1, 2, 3, 4].forEach((n, i) => {
       setTimeout(() => {

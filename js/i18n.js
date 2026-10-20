@@ -1,4 +1,4 @@
-// i18n.js — Brazilian Portuguese translation layer for Prelude for Recorder.
+// i18n.js — Brazilian Portuguese translation layer for Preludio Recorder.
 var LANG_STORAGE_KEY = 'preludeRecorderLang';
 
 function detectDefaultLang() {

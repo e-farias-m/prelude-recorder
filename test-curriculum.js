@@ -1,4 +1,4 @@
-// test-curriculum.js — integrity checks for js/curriculum.js (Prelude for Recorder)
+// test-curriculum.js — integrity checks for js/curriculum.js (Preludio Recorder)
 
 const fs = require('fs');
 const path = require('path');

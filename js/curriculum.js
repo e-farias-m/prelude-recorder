@@ -1,5 +1,5 @@
 // curriculum.js
-// Instrument and lesson data for Prelude for Recorder
+// Instrument and lesson data for Preludio Recorder
 //
 // staffStep: treble clef position where 0 = E4 (bottom line)
 //   Each diatonic step UP = +1. Lines are at steps 0,2,4,6,8.
