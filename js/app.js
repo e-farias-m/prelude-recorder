@@ -49,6 +49,8 @@ const APP = {
   // Song session state
   songNoteIndex: 0,
   songSpeed: 1.0,
+  quizQueue: [],
+  quizIndex: 0,
 };
 
 const VERSION = '1.0.1';
@@ -1220,7 +1222,7 @@ function renderSongPlayPhase(inst, lesson) {
     </div>`;
 }
 
-function buildQuizOptions(inst, lesson) {
+function buildQuizOptions(inst, lesson, forcedType) {
   const completedCount = getLearnedNotes(APP.instrumentId).length;
   const alreadyCompleted = !!getInstrumentProgress(APP.instrumentId).completed[lesson.id];
 
@@ -1229,9 +1231,11 @@ function buildQuizOptions(inst, lesson) {
   if (completedCount >= 2) availableTypes.push(QUIZ_TYPES.STAFF_TO_NOTE);
   if (completedCount >= 3) availableTypes.push(QUIZ_TYPES.NOTE_TO_STAFF);
 
-  const quizType = alreadyCompleted
-    ? availableTypes[Math.floor(Math.random() * availableTypes.length)]
-    : QUIZ_TYPES.FINGERING_TO_NOTE;
+  const quizType = forcedType
+    ? forcedType
+    : alreadyCompleted
+      ? availableTypes[Math.floor(Math.random() * availableTypes.length)]
+      : QUIZ_TYPES.FINGERING_TO_NOTE;
 
   // Draw distractors from learned notes for spaced repetition;
   // fall back to all lessons if not enough learned notes exist.
@@ -1258,6 +1262,28 @@ function buildSongQuizOptions(inst, song) {
   return buildQuizOptions(inst, noteLesson);
 }
 
+// A mixed 3-question set per note lesson: the new note plus previously learned
+// notes, rotating through question types the student has unlocked.
+function buildNoteQuizQueue(inst, lesson) {
+  const learned = getLearnedNotes(APP.instrumentId);
+  const alreadyCompleted = learned.some(l => l.id === lesson.id);
+  // Distinct notes that can be asked without repeating: the prior notes, plus
+  // the new note if it has not been completed yet.
+  const available = alreadyCompleted ? learned.length : learned.length + 1;
+  const count = Math.min(3, available);
+
+  const others = shuffle(learned.filter(l => l.id !== lesson.id)).slice(0, count - 1);
+  const prompts = shuffle([lesson, ...others]);
+
+  const completedCount = learned.length;
+  const types = [QUIZ_TYPES.FINGERING_TO_NOTE];
+  if (completedCount >= 1) types.push(QUIZ_TYPES.NOTE_TO_FINGERING);
+  if (completedCount >= 2) types.push(QUIZ_TYPES.STAFF_TO_NOTE);
+  if (completedCount >= 3) types.push(QUIZ_TYPES.NOTE_TO_STAFF);
+
+  return prompts.map((note, i) => buildQuizOptions(inst, note, types[i % types.length]));
+}
+
 function getQuizQuestionText(quizType) {
   switch (quizType) {
     case QUIZ_TYPES.FINGERING_TO_NOTE:  return 'Which note does this fingering play?';
@@ -1270,15 +1296,23 @@ function getQuizQuestionText(quizType) {
 
 function renderQuizPhase(inst, lesson) {
   if (!APP.quiz) {
-    APP.quiz = isSongLesson(lesson) ? buildSongQuizOptions(inst, lesson) : buildQuizOptions(inst, lesson);
+    if (isSongLesson(lesson)) {
+      APP.quizQueue = [buildSongQuizOptions(inst, lesson)];
+    } else if (!isReviewLesson(lesson)) {
+      APP.quizQueue = buildNoteQuizQueue(inst, lesson);
+    }
+    APP.quizIndex = 0;
+    APP.quiz = APP.quizQueue[0] || null;
   }
   const q = APP.quiz;
   const isReview = isReviewLesson(lesson);
 
-  // Review progress indicator
+  // Review / question-queue progress indicator
   let reviewProgress = '';
   if (isReview) {
     reviewProgress = `<div class="review-progress">Note ${APP.reviewIndex + 1} of ${APP.reviewTotal}</div>`;
+  } else if (APP.quizQueue && APP.quizQueue.length > 1) {
+    reviewProgress = `<div class="review-progress">Question ${APP.quizIndex + 1} of ${APP.quizQueue.length}</div>`;
   }
 
   // ── PROMPT ──
@@ -1325,7 +1359,7 @@ function renderQuizPhase(inst, lesson) {
 
   const btnLabel = isReview
     ? (APP.reviewIndex >= APP.reviewTotal - 1 ? 'See summary' : 'Next note')
-    : 'Continue';
+    : (APP.quizQueue && APP.quizIndex < APP.quizQueue.length - 1 ? 'Next question' : 'Continue');
 
   return `
     <div class="lesson-body">
@@ -1952,6 +1986,8 @@ function handleAction(action, el) {
       APP.lessonIndex = idx;
       const lesson = getLesson(APP.instrumentId, idx);
       APP.play = { running: false, hasPlayed: false, hasListened: false };
+      APP.quizQueue = [];
+      APP.quizIndex = 0;
       startSession();
 
       if (isSongLesson(lesson)) {
@@ -2164,7 +2200,14 @@ function handleAction(action, el) {
         render();
         return;
       }
-      // ── Regular lesson ───────────────────────────────────────────
+      // ── Regular note lesson: step through the mixed quiz set ──────
+      if (APP.quizQueue && APP.quizIndex < APP.quizQueue.length - 1) {
+        APP.quizIndex++;
+        APP.quiz = APP.quizQueue[APP.quizIndex];
+        APP.phase = 'quiz';
+        render();
+        return;
+      }
       APP.phase = 'play';
       APP.play = { running: false, hasPlayed: false, hasListened: false };
       render();
@@ -2182,8 +2225,7 @@ function handleAction(action, el) {
     }
 
     case 'play-confirm': {
-      const q = APP.quiz;
-      const mistakes = q ? q.wrongIds.length : 0;
+      const mistakes = (APP.quizQueue || []).reduce((sum, item) => sum + item.wrongIds.length, 0);
       const stars = mistakes === 0 ? 3 : (mistakes <= 2 ? 2 : 1);
       const xp = 10 + (stars * 5);
       APP.lastStars = stars;
