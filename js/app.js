@@ -51,6 +51,9 @@ const APP = {
   songSpeed: 1.0,
   quizQueue: [],
   quizIndex: 0,
+  lookupId: null,
+  lookupReturn: 'map',
+  tutorialIndex: 0,
 };
 
 const VERSION = '1.0.1';
@@ -75,6 +78,22 @@ function markFirstSoundSeen(instrumentId) {
   const seen = getFirstSoundSeenMap();
   seen[instrumentId] = true;
   localStorage.setItem(FIRST_SOUND_KEY, JSON.stringify(seen));
+}
+
+const TUTORIAL_KEY = 'preludeRecorderTutorials';
+
+function getTutorialSeen(instrumentId) {
+  let seen = [];
+  try { seen = JSON.parse(localStorage.getItem(TUTORIAL_KEY) || '[]'); } catch (e) {}
+  return Array.isArray(seen) && seen.indexOf(instrumentId) !== -1;
+}
+function markTutorialSeen(instrumentId) {
+  if (getTutorialSeen(instrumentId)) return;
+  let seen = [];
+  try { seen = JSON.parse(localStorage.getItem(TUTORIAL_KEY) || '[]'); } catch (e) {}
+  if (!Array.isArray(seen)) seen = [];
+  seen.push(instrumentId);
+  localStorage.setItem(TUTORIAL_KEY, JSON.stringify(seen));
 }
 
 // Recorders are all fipple flutes — one shared first-sound guide.
@@ -765,6 +784,136 @@ function renderFocusCard(inst) {
     </div>`;
 }
 
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text).then(() => true).catch(() => false);
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    return Promise.resolve(true);
+  } catch (e) {
+    return Promise.resolve(false);
+  }
+}
+
+// ── RENDER: PRACTICE REPORT ────────────────────────────────────────────────
+// A printable, shareable summary of everything the student has done, in the
+// style of a music teacher's practice report.
+function buildPracticeReport(name, now = new Date()) {
+  const instruments = INSTRUMENT_ORDER
+    .map(id => getInstrumentReport(id))
+    .filter(r => r.notesLearned > 0 || r.songsCompleted > 0 || r.xp > 0);
+  const badgeNames = BADGES.filter(b => hasBadge(b.id)).map(b => b.name);
+  return {
+    student: name || 'Student',
+    date: todayKey(now),
+    level: getLevel(),
+    avatar: getAvatar(),
+    xp: getTotalXp(),
+    streak: getCurrentStreak(now),
+    totalMinutes: Math.round(getTotalPracticeSeconds() / 60),
+    notesLearned: instruments.reduce((a, r) => a + r.notesLearned, 0),
+    songsCompleted: instruments.reduce((a, r) => a + r.songsCompleted, 0),
+    badges: badgeNames,
+    badgeTotal: BADGES.length,
+    instruments,
+  };
+}
+
+// Plain-text version for the clipboard / email.
+function formatReportText(report) {
+  const lines = [];
+  lines.push(`Practice report \u2014 ${report.student}`);
+  lines.push(report.date);
+  lines.push('');
+  lines.push(`Level ${report.level} \u00b7 ${report.xp} XP \u00b7 ${report.streak}-day streak \u00b7 ${report.totalMinutes} min practiced`);
+  lines.push(`Badges: ${report.badges.length}/${report.badgeTotal}${report.badges.length ? ' \u2014 ' + report.badges.join(', ') : ''}`);
+  lines.push('');
+  if (!report.instruments.length) {
+    lines.push('No practice recorded yet.');
+  } else {
+    report.instruments.forEach(r => {
+      lines.push(`${r.name}: ${r.notesLearned}/${r.notesTotal} notes \u00b7 ${r.songsCompleted}/${r.songsTotal} songs \u00b7 ${r.xp} XP`);
+      lines.push(`  Mastery: ${r.mastery.mastered} mastered, ${r.mastery.practiced} practiced, ${r.mastery.learning} learning`);
+      if (r.weak.length) {
+        lines.push(`  Focus: ${r.weak.map(w => w.name + ' (' + w.accuracy + '%)').join(', ')}`);
+      }
+    });
+  }
+  return lines.join('\n');
+}
+
+function renderReportScreen() {
+  const report = buildPracticeReport(getStudentName());
+  const statChips = `
+    <div class="report-stats">
+      <div class="report-stat"><b>${report.level}</b><span>Level</span></div>
+      <div class="report-stat"><b>${report.xp}</b><span>XP</span></div>
+      <div class="report-stat"><b>${report.streak}</b><span>Day streak</span></div>
+      <div class="report-stat"><b>${report.totalMinutes}</b><span>Minutes</span></div>
+    </div>`;
+
+  const cards = report.instruments.map(r => {
+    const pct = r.notesTotal ? Math.round((r.notesLearned / r.notesTotal) * 100) : 0;
+    const weak = r.weak.length
+      ? `<div class="report-focus">Focus: ${r.weak.map(w => `${escapeHtml(w.name)} (${w.accuracy}%)`).join(', ')}</div>`
+      : '';
+    return `
+      <div class="report-card">
+        <div class="report-card-head">
+          <div class="report-card-name">${escapeHtml(r.name)}</div>
+          <div class="report-card-xp">${r.xp} XP</div>
+        </div>
+        <div class="report-bar-track"><div class="report-bar-fill" style="width:${pct}%"></div></div>
+        <div class="report-card-line">${r.notesLearned}/${r.notesTotal} notes \u00b7 ${r.songsCompleted}/${r.songsTotal} songs</div>
+        <div class="report-mastery">
+          <span class="report-mastered">${r.mastery.mastered} mastered</span>
+          <span class="report-practiced">${r.mastery.practiced} practiced</span>
+          <span class="report-learning">${r.mastery.learning} learning</span>
+        </div>
+        ${weak}
+      </div>`;
+  }).join('') || '<div class="report-empty">No practice recorded yet \u2014 play a lesson to start the report.</div>';
+
+  const badges = report.badges.length
+    ? report.badges.map(b => `<span class="report-badge">${escapeHtml(b)}</span>`).join('')
+    : '<span class="report-badge-empty">No badges yet</span>';
+
+  return `
+    <div class="screen active report-screen">
+      <div class="app-header">
+        <button class="header-back" data-action="close-report">\u2190</button>
+        <div class="header-title">Practice report</div>
+      </div>
+      <div class="lesson-body">
+        <div class="report-hero">
+          <div class="report-avatar">${report.avatar}</div>
+          <div>
+            <div class="report-name">${escapeHtml(report.student)}</div>
+            <div class="report-date">${report.date}</div>
+          </div>
+        </div>
+        ${statChips}
+        <div class="report-section-label">Instruments</div>
+        ${cards}
+        <div class="report-section-label">Badges \u00b7 ${report.badges.length}/${report.badgeTotal}</div>
+        <div class="report-badges">${badges}</div>
+        <div class="report-actions">
+          <button class="btn btn-primary" data-action="copy-report">Copy summary</button>
+          <button class="btn btn-secondary" data-action="print-report">Print</button>
+        </div>
+      </div>
+    </div>`;
+}
+
 function renderSelectScreen() {
   const savedId = getSavedInstrument();
   const savedInst = savedId && CURRICULUM[savedId] && CURRICULUM[savedId].available
@@ -775,6 +924,9 @@ function renderSelectScreen() {
   const studentName = getStudentName();
   const motivationHtml = studentName ? renderStudentCard(studentName) : '';
   const badgesHtml = studentName ? renderBadgeShelf() : '';
+  const reportHtml = studentName
+    ? `<button class="btn btn-secondary report-open" data-action="open-report">\u{1F4CB} Progress report</button>`
+    : '';
 
   let headline;
   let sub;
@@ -811,6 +963,7 @@ function renderSelectScreen() {
         <button class="theme-toggle settings-gear" data-action="open-settings" title="Settings">\u{2699}\u{FE0F}</button>
       </div>
       ${motivationHtml}
+      ${reportHtml}
       ${instrumentArea}
       ${badgesHtml}
       <div class="version-badge" data-action="show-analytics" style="cursor:pointer">v${VERSION}</div>
@@ -931,6 +1084,151 @@ function renderReferenceOverlay() {
 }
 
 // ── RENDER: MAP SCREEN ─────────────────────────────────────────────────────
+// ── RENDER: QUICK TOUR ─────────────────────────────────────────────────────
+// A short, skippable walkthrough shown the first time a student picks an
+// instrument. Slides are instrument-aware (uses the first note's fingering
+// art) and can be replayed any time from the lesson map.
+function buildTutorialSlides(inst) {
+  const firstNote = getNoteLessons(inst.id)[0];
+  const noteArt = firstNote
+    ? `<div class="tutorial-visual">${Graphics.fingeringSVG(inst.fingeringType, firstNote.fingeringState, inst.accentColor, 92)}${Graphics.staffSVG({ pos: firstNote.staffStep, accidental: firstNote.accidental, clef: inst.clef, accentColor: inst.accentColor, width: 74 })}</div>`
+    : '';
+  const instrumentArt = `<div class="tutorial-visual tutorial-visual-icon">${Graphics.instrumentIconSVG(inst.id, 96)}</div>`;
+  return [
+    {
+      icon: '\u{1F389}',
+      title: `You're set up on ${t(inst.name)}`,
+      body: `Welcome! This is a one-minute tour of how the app works. You can skip it and replay it any time from your lesson map.`,
+      visual: instrumentArt,
+    },
+    {
+      icon: '\u{1F5FA}\uFE0F',
+      title: 'Follow your lesson path',
+      body: `Every note and song is a stop on your ${inst.shortName} map. Finish one step to unlock the next \u2014 a \u{1F512} just means the step before it is still waiting.`,
+    },
+    {
+      icon: '\u{1F440}',
+      title: 'See it, then check it',
+      body: 'Each new note shows its name, sound, and fingering. Tap \u201CHear it,\u201D then answer a quick check to lock the note in.',
+      visual: noteArt,
+    },
+    {
+      icon: '\u{1F3B5}',
+      title: 'Play it yourself',
+      body: 'Then play the note on your instrument. Songs walk you through one note at a time before you take the quiz.',
+    },
+    {
+      icon: '\u{1F94B}',
+      title: 'Practice and tools',
+      body: 'Finger-gym sprints build speed, and the floating metronome and tuner (bottom right) keep you steady and in tune.',
+    },
+    {
+      icon: '\u2B50',
+      title: 'Watch yourself grow',
+      body: 'You earn XP, streaks, and badges as you play. Ready? Let\u2019s play!',
+    },
+  ];
+}
+
+function renderTutorialScreen() {
+  const inst = getInstrument(APP.instrumentId) || CURRICULUM[INSTRUMENT_ORDER[0]];
+  const slides = buildTutorialSlides(inst);
+  const i = Math.min(Math.max(APP.tutorialIndex || 0, 0), slides.length - 1);
+  const slide = slides[i];
+  const last = i === slides.length - 1;
+  const art = slide.visual || `<div class="tutorial-emoji">${slide.icon}</div>`;
+  const dots = slides.map((_, n) => `<span class="tutorial-dot${n === i ? ' active' : ''}${n < i ? ' done' : ''}"></span>`).join('');
+  return `
+    <div class="screen active tutorial-screen">
+      <div class="app-header">
+        <button class="header-back" data-action="tutorial-finish" title="Skip the tour">\u2715</button>
+        <div class="header-title">Quick tour</div>
+      </div>
+      <div class="tutorial-body">
+        <div class="tutorial-art">${art}</div>
+        <h2 class="tutorial-title">${slide.title}</h2>
+        <p class="tutorial-text">${slide.body}</p>
+        <div class="tutorial-dots">${dots}</div>
+      </div>
+      <div class="action-bar">
+        <div class="tutorial-actions">
+          <button class="btn btn-secondary" data-action="tutorial-back" ${i === 0 ? 'disabled' : ''}>Back</button>
+          <button class="btn btn-primary" data-action="tutorial-next">${last ? 'Start playing' : 'Next'}</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── RENDER: FINGERING CHART (LOOKUP) ───────────────────────────────────────
+// A quick-reference chart of every note an instrument teaches. It is a lookup
+// companion — the whole chart is available from the start, with learned notes
+// highlighted, so it works alongside a method book.
+function renderLookupScreen() {
+  const inst = getInstrument(APP.instrumentId);
+  const notes = getNoteLessons(APP.instrumentId);
+  const learnedIds = new Set(getLearnedNotes(APP.instrumentId).map(l => l.id));
+
+  if (!notes.length) {
+    return `
+      <div class="screen active lookup-screen">
+        <div class="app-header">
+          <button class="header-back" data-action="close-lookup">\u2190</button>
+          <div class="header-title">Fingering chart \u00b7 ${inst.shortName}</div>
+        </div>
+        <div class="lesson-body">
+          <div class="practice-intro">No notes to show yet.</div>
+        </div>
+      </div>`;
+  }
+
+  let selected = notes.find(l => l.id === APP.lookupId);
+  if (!selected) selected = notes[0];
+  APP.lookupId = selected.id;
+
+  const bigFingering = Graphics.fingeringSVG(inst.fingeringType, selected.fingeringState, inst.accentColor, 120);
+  const staffSvg = Graphics.staffSVG({ pos: selected.staffStep, accidental: selected.accidental, clef: inst.clef, accentColor: inst.accentColor, width: 130 });
+
+  const cards = notes.map(l => {
+    const learned = learnedIds.has(l.id);
+    const cls = 'lookup-card'
+      + (l.id === selected.id ? ' lookup-card-active' : '')
+      + (learned ? '' : ' lookup-card-locked');
+    const svg = Graphics.fingeringSVG(inst.fingeringType, l.fingeringState, learned ? inst.accentColor : '#6b6b7d', 46);
+    return `
+      <button class="${cls}" data-action="lookup-select" data-id="${l.id}" aria-label="${escapeHtml(t(l.noteName))}">
+        <div class="lookup-card-svg">${svg}</div>
+        <div class="lookup-card-name">${escapeHtml(t(l.noteName))}</div>
+      </button>`;
+  }).join('');
+
+  return `
+    <div class="screen active lookup-screen">
+      <div class="app-header">
+        <button class="header-back" data-action="close-lookup">\u2190</button>
+        <div class="header-title">Fingering chart \u00b7 ${inst.shortName}</div>
+      </div>
+      <div class="lesson-body">
+        <div class="lookup-detail">
+          <div class="lookup-diagrams">
+            <div class="lookup-diagram">
+              <div class="lookup-diagram-label">Fingering</div>
+              ${bigFingering}
+            </div>
+            <div class="lookup-diagram">
+              <div class="lookup-diagram-label">On the staff</div>
+              ${staffSvg}
+            </div>
+          </div>
+          <div class="lookup-name">${escapeHtml(t(selected.noteName))}</div>
+          <div class="lookup-desc">${escapeHtml(selected.description || '')}</div>
+          <button class="btn btn-secondary btn-wide" data-action="lookup-hear">\u{1F50A} Hear it</button>
+        </div>
+        <div class="lookup-grid-label">${learnedIds.size} of ${notes.length} notes learned</div>
+        <div class="lookup-grid">${cards}</div>
+      </div>
+    </div>`;
+}
+
 function renderPlanCard(instrumentId) {
   const plan = getTodayPlan(instrumentId);
   if (!plan.items.length) return '';
@@ -1099,6 +1397,10 @@ function renderMapScreen() {
         </div>
         <div class="map-unit-label">Unit 1 · First Notes</div>
         <div class="map-path">${nodes}</div>
+        <div class="map-guide">
+          <button class="map-guide-link" data-action="open-lookup">🎼 Fingering chart</button>
+          <button class="map-guide-link" data-action="open-tutorial">❔ How this app works</button>
+        </div>
         ${doneCount > 0 ? `<button class="btn btn-secondary game-launch-btn" data-action="open-game" style="margin-top:20px;width:100%">🎯 Sight Reading Challenge</button>` : ''}
       </div>
     </div>`;
@@ -1716,6 +2018,9 @@ function render() {
   if (APP.screen === 'select') app.innerHTML = renderSelectScreen();
   else if (APP.screen === 'map') app.innerHTML = renderMapScreen();
   else if (APP.screen === 'first-sound') app.innerHTML = renderFirstSoundScreen();
+  else if (APP.screen === 'lookup') app.innerHTML = renderLookupScreen();
+  else if (APP.screen === 'tutorial') app.innerHTML = renderTutorialScreen();
+  else if (APP.screen === 'report') app.innerHTML = renderReportScreen();
   else if (APP.screen === 'lesson') app.innerHTML = renderLessonScreen();
   else if (APP.screen === 'settings') app.innerHTML = renderSettingsScreen();
   else if (APP.screen === 'analytics') app.innerHTML = renderAnalyticsScreen();
@@ -1977,7 +2282,13 @@ function handleAction(action, el) {
       APP.instrumentId = id;
       setSavedInstrument(id);
       APP.pickingInstrument = false;
-      APP.screen = 'map';
+      // First time on this instrument? Show the quick app tour before the map.
+      if (!getTutorialSeen(id)) {
+        APP.tutorialIndex = 0;
+        APP.screen = 'tutorial';
+      } else {
+        APP.screen = 'map';
+      }
       render();
       break;
     }
@@ -2029,6 +2340,79 @@ function handleAction(action, el) {
 
       APP.screen = 'lesson';
       render();
+      break;
+    }
+
+    case 'open-report':
+      APP.screen = 'report';
+      render();
+      break;
+
+    case 'close-report':
+      APP.screen = 'select';
+      render();
+      break;
+
+    case 'copy-report': {
+      const text = formatReportText(buildPracticeReport(getStudentName()));
+      copyText(text).then(ok => showToast(ok ? 'Report copied to clipboard.' : 'Copy failed \u2014 try Print instead.'));
+      break;
+    }
+
+    case 'print-report':
+      window.print();
+      break;
+
+    case 'open-tutorial':
+      APP.tutorialIndex = 0;
+      APP.screen = 'tutorial';
+      render();
+      break;
+
+    case 'tutorial-next': {
+      const slides = buildTutorialSlides(getInstrument(APP.instrumentId));
+      if (APP.tutorialIndex >= slides.length - 1) {
+        markTutorialSeen(APP.instrumentId);
+        APP.screen = 'map';
+      } else {
+        APP.tutorialIndex += 1;
+      }
+      render();
+      break;
+    }
+
+    case 'tutorial-back':
+      APP.tutorialIndex = Math.max((APP.tutorialIndex || 0) - 1, 0);
+      render();
+      break;
+
+    case 'tutorial-finish':
+      markTutorialSeen(APP.instrumentId);
+      APP.screen = 'map';
+      render();
+      break;
+
+    case 'open-lookup':
+      APP.lookupReturn = APP.screen === 'lesson' ? 'map' : APP.screen;
+      APP.screen = 'lookup';
+      render();
+      break;
+
+    case 'close-lookup':
+      APP.screen = APP.lookupReturn === 'practice' ? 'practice' : 'map';
+      render();
+      break;
+
+    case 'lookup-select':
+      APP.lookupId = el.dataset.id;
+      render();
+      break;
+
+    case 'lookup-hear': {
+      const inst = getInstrument(APP.instrumentId);
+      const notes = getNoteLessons(APP.instrumentId);
+      const note = notes.find(l => l.id === APP.lookupId) || notes[0];
+      if (note) AudioEngine.playInstrumentNote(note.freq, inst.fingeringType, 1.1);
       break;
     }
 
