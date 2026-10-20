@@ -40,6 +40,7 @@ const APP = {
   progress: {},
   toolsOpen: false,
   toolTab: 'metronome',
+  pickingInstrument: false,
   // Review session state
   reviewQueue: null,
   reviewIndex: 0,
@@ -53,6 +54,13 @@ const APP = {
 const VERSION = '1.0.1';
 const STORAGE_KEY = 'preludeRecorderProgress';
 const NAME_KEY = 'preludeRecorderName';
+const INSTRUMENT_KEY = 'preludeRecorderInstrument';
+
+// Last instrument the student opened — lets the home screen focus on one
+// instrument instead of the full set until they ask to switch.
+function getSavedInstrument() { return localStorage.getItem(INSTRUMENT_KEY) || ''; }
+function setSavedInstrument(id) { localStorage.setItem(INSTRUMENT_KEY, id); }
+function clearSavedInstrument() { localStorage.removeItem(INSTRUMENT_KEY); }
 
 // ── ANALYTICS (local) ─────────────────────────────────────────────────────────
 const ANALYTICS_KEY = 'preludeRecorderAnalytics';
@@ -613,7 +621,82 @@ function renderTunerPanel() {
   </div>`;
 }
 
-function renderSelectScreen() {
+function getNoteLessons(instrumentId) {
+  const inst = getInstrument(instrumentId);
+  return (inst.lessons || []).filter(l => !isSongLesson(l) && !isReviewLesson(l));
+}
+
+function getInstrumentReport(instrumentId) {
+  const inst = getInstrument(instrumentId);
+  const prog = getInstrumentProgress(instrumentId);
+  const noteLessons = getNoteLessons(instrumentId);
+  const songLessons = inst.lessons.filter(isSongLesson);
+  const learned = getLearnedNotes(instrumentId);
+  const mastery = { new: 0, learning: 0, practiced: 0, mastered: 0 };
+  learned.forEach(l => { mastery[getMasteryLevel(getNoteMastery(instrumentId, l.id))]++; });
+  const weak = getWeakestNotes(instrumentId, 3)
+    .filter(w => w.attempts > 0)
+    .map(w => ({ name: t(w.lesson.noteName), accuracy: Math.round((w.accuracy || 0) * 100) }));
+  return {
+    id: instrumentId,
+    name: t(inst.name),
+    shortName: inst.shortName,
+    xp: prog.xp || 0,
+    notesLearned: learned.length,
+    notesTotal: noteLessons.length,
+    songsCompleted: songLessons.filter(s => prog.completed[s.id]).length,
+    songsTotal: songLessons.length,
+    mastery,
+    weak,
+  };
+}
+
+function renderStudentCard(name) {
+  const xp = getTotalXp();
+  const level = getLevel(xp);
+  const avatar = getAvatar(level);
+  const streak = getCurrentStreak();
+  const minutes = Math.floor(getTotalPracticeSeconds() / 60);
+  const pct = xp % 100;
+  const streakHtml = streak > 0
+    ? `<span class="student-stat student-stat-streak">\u{1F525} ${streak}-day streak</span>`
+    : `<span class="student-stat">Practice today to start a streak!</span>`;
+  return `
+    <div class="student-card">
+      <div class="student-avatar">${avatar}</div>
+      <div class="student-details">
+        <div class="student-name-row">
+          <span class="student-name">${escapeHtml(name)}</span>
+          <span class="student-level">Lv ${level}</span>
+        </div>
+        <div class="student-stats">
+          ${streakHtml}
+          <span class="student-stat">\u{23F1} ${minutes} min</span>
+          <span class="student-stat">\u{2B50} ${xp} XP</span>
+        </div>
+        <div class="level-bar-track"><div class="level-bar-fill" style="width:${pct}%"></div></div>
+      </div>
+    </div>`;
+}
+
+function renderBadgeShelf() {
+  const earned = BADGES.filter(b => hasBadge(b.id)).length;
+  const items = BADGES.map(b => {
+    const got = hasBadge(b.id);
+    return `
+      <div class="badge ${got ? 'badge-earned' : 'badge-locked'}" title="${b.name}: ${b.desc}">
+        <div class="badge-icon">${got ? b.icon : '\u{1F512}'}</div>
+        <div class="badge-name">${b.name}</div>
+      </div>`;
+  }).join('');
+  return `
+    <div class="badges-shelf">
+      <div class="badges-shelf-title">Badges · ${earned}/${BADGES.length}</div>
+      <div class="badges-grid">${items}</div>
+    </div>`;
+}
+
+function renderInstrumentGrid() {
   const cards = INSTRUMENT_ORDER.map(id => {
     const inst = CURRICULUM[id];
     const icon = Graphics.instrumentIconSVG(id, 56);
@@ -626,14 +709,55 @@ function renderSelectScreen() {
         <div class="card-name" style="color: var(--text-primary)">${inst.shortName}</div>
       </div>`;
   }).join('');
+  return `<div class="instrument-grid">${cards}</div>`;
+}
 
-  const streak = getCurrentStreak();
-  const streakText = streak > 1 ? `${streak} day streak! \u{1F525}` : 'Start your streak today!';
-  const langIcon = `<button class="btn-icon" data-action="toggle-language" title="Language" style="background:none;border:none;cursor:pointer;font-size:14px;vertical-align:middle;margin-left:6px;">${getLang() === 'pt' ? 'PT' : 'EN'}</button>`;
-  const themeIcon = `<button class="btn-icon" data-action="toggle-theme" title="Theme" style="background:none;border:none;cursor:pointer;font-size:14px;vertical-align:middle;margin-left:6px;">${getTheme() === 'light' ? '\u2600\uFE0F' : '\u{1F319}'}</button>`;
-  const settingsIcon = `<button class="btn-icon settings-gear" data-action="open-settings" title="Settings" style="background:none;border:none;cursor:pointer;font-size:18px;vertical-align:middle;margin-left:6px;">⚙️</button>`;
-  const tunerIcon = `<button class="btn-icon" data-action="toggle-tuner" title="Tuner" style="background:none;border:none;cursor:pointer;font-size:14px;vertical-align:middle;margin-left:6px;">🎵</button>`;
+// A single, prominent card for the instrument the student is working in, so the
+// home screen stays focused instead of showing every instrument all the time.
+function renderFocusCard(inst) {
+  const ir = getInstrumentReport(inst.id);
+  const progress = ir.xp > 0
+    ? `${ir.notesLearned}/${ir.notesTotal} notes · ${ir.songsCompleted}/${ir.songsTotal} songs`
+    : 'Ready for your first lesson';
+  return `
+    <div class="focus-instrument">
+      <div class="focus-card" data-action="select-instrument" data-id="${inst.id}" style="color:${inst.accentColor}">
+        <div class="focus-icon">${Graphics.instrumentIconSVG(inst.id, 64)}</div>
+        <div class="focus-info">
+          <div class="focus-name">${escapeHtml(t(inst.name))}</div>
+          <div class="focus-progress">${progress}</div>
+        </div>
+        <div class="focus-go">Continue \u2192</div>
+      </div>
+      <button class="switch-instrument" data-action="switch-instrument">Switch instrument</button>
+    </div>`;
+}
+
+function renderSelectScreen() {
+  const savedId = getSavedInstrument();
+  const savedInst = savedId && CURRICULUM[savedId] && CURRICULUM[savedId].available
+    ? CURRICULUM[savedId]
+    : null;
+  const picking = APP.pickingInstrument || !savedInst;
+
   const studentName = getStudentName();
+  const motivationHtml = studentName ? renderStudentCard(studentName) : '';
+  const badgesHtml = studentName ? renderBadgeShelf() : '';
+
+  let headline;
+  let sub;
+  let instrumentArea;
+  if (picking) {
+    headline = t('First notes, first wins.');
+    sub = t('Pick a recorder to start your very first lessons — fingerings, notes, and your first sounds.');
+    instrumentArea = `
+      ${savedInst ? `<button class="picker-back" data-action="cancel-instrument-pick">\u2190 Back to ${savedInst.shortName}</button>` : ''}
+      ${renderInstrumentGrid()}`;
+  } else {
+    headline = studentName ? `Ready, ${escapeHtml(studentName)}?` : 'Ready to play?';
+    sub = t(`You're set up on ${savedInst.shortName}. Pick up where you left off.`);
+    instrumentArea = renderFocusCard(savedInst);
+  }
 
   return `
     <div class="screen active select-screen">
@@ -646,12 +770,17 @@ function renderSelectScreen() {
           </svg>
           <span class="wordmark-text">Prelude <span>for Recorder</span></span>
         </div>
-        <div class="select-headline">${t('First notes, first wins.')}</div>
-        <div class="select-sub">${t('Pick a recorder to start your very first lessons — fingerings, notes, and your first sounds.')}</div>
+        <div class="select-headline">${headline}</div>
+        <div class="select-sub">${sub}</div>
       </div>
-      <div class="streak-bar">${streakText} ${langIcon} ${themeIcon} ${tunerIcon} ${settingsIcon}</div>
-      <div class="select-student-name">${escapeHtml(studentName)}</div>
-      <div class="instrument-grid">${cards}</div>
+      <div class="select-hero-settings">
+        <button class="theme-toggle" data-action="toggle-language" title="Language">${getLang() === 'pt' ? 'PT' : 'EN'}</button>
+        <button class="theme-toggle" data-action="toggle-theme" title="Switch to ${getTheme() === 'light' ? 'dark' : 'light'} theme">${getTheme() === 'light' ? '\u{1F319}' : '\u2600\uFE0F'}</button>
+        <button class="theme-toggle settings-gear" data-action="open-settings" title="Settings">\u{2699}\u{FE0F}</button>
+      </div>
+      ${motivationHtml}
+      ${instrumentArea}
+      ${badgesHtml}
       <div class="version-badge" data-action="show-analytics" style="cursor:pointer">v${VERSION}</div>
     </div>`;
 }
@@ -1663,10 +1792,22 @@ function handleAction(action, el) {
       const inst = getInstrument(id);
       if (!inst.available) { showToast(`${t(inst.name)} is coming soon!`); return; }
       APP.instrumentId = id;
+      setSavedInstrument(id);
+      APP.pickingInstrument = false;
       APP.screen = 'map';
       render();
       break;
     }
+
+    case 'cancel-instrument-pick':
+      APP.pickingInstrument = false;
+      render();
+      break;
+
+    case 'switch-instrument':
+      APP.pickingInstrument = true;
+      render();
+      break;
 
     case 'go-select':
       stopMetronome();
