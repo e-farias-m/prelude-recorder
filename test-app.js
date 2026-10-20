@@ -25,7 +25,7 @@ const document = {
   body: makeEl(),
   documentElement: { setAttribute() {} },
 };
-const store = { preludeRecorderName: 'Test' };
+const store = { preludioRecorderName: 'Test' };
 const localStorage = {
   getItem(k) { return k in store ? store[k] : null; },
   setItem(k, v) { store[k] = String(v); },

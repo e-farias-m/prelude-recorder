@@ -17,7 +17,18 @@
   <script>
     (function () {
       var theme = 'dark';
-      try { theme = localStorage.getItem('preludeRecorderTheme') || 'dark'; } catch (e) {}
+      try {
+        // One-time migration: preludeRecorder* -> preludioRecorder* (project rename).
+        ['Analytics','FirstSound','Instrument','Lang','Motivation','Name','Progress','Theme','Tutorials'].forEach(function(k) {
+          var ok = 'preludeRecorder' + k, nk = 'preludioRecorder' + k;
+          var v = localStorage.getItem(ok);
+          if (v !== null) {
+            if (localStorage.getItem(nk) === null) localStorage.setItem(nk, v);
+            localStorage.removeItem(ok);
+          }
+        });
+      } catch (e) {}
+      try { theme = localStorage.getItem('preludioRecorderTheme') || 'dark'; } catch (e) {}
       document.documentElement.setAttribute('data-theme', theme);
     })();
   </script>

@@ -18,7 +18,7 @@ var CHORD_FREQS = {
   'G/B': [123.47, 146.83, 196.00]
 };
 
-const THEME_KEY = 'preludeRecorderTheme';
+const THEME_KEY = 'preludioRecorderTheme';
 function getTheme() { return (typeof localStorage !== 'undefined' && localStorage.getItem(THEME_KEY)) || 'dark'; }
 function applyTheme(theme) {
   if (typeof document !== 'undefined' && document.documentElement) {
@@ -59,9 +59,9 @@ const APP = {
 };
 
 const VERSION = '1.0.1';
-const STORAGE_KEY = 'preludeRecorderProgress';
-const NAME_KEY = 'preludeRecorderName';
-const INSTRUMENT_KEY = 'preludeRecorderInstrument';
+const STORAGE_KEY = 'preludioRecorderProgress';
+const NAME_KEY = 'preludioRecorderName';
+const INSTRUMENT_KEY = 'preludioRecorderInstrument';
 
 // Last instrument the student opened — lets the home screen focus on one
 // instrument instead of the full set until they ask to switch.
@@ -70,7 +70,7 @@ function setSavedInstrument(id) { localStorage.setItem(INSTRUMENT_KEY, id); }
 function clearSavedInstrument() { localStorage.removeItem(INSTRUMENT_KEY); }
 
 // First-sound guide has been seen per instrument (onboarding CTA state).
-const FIRST_SOUND_KEY = 'preludeRecorderFirstSound';
+const FIRST_SOUND_KEY = 'preludioRecorderFirstSound';
 function getFirstSoundSeenMap() {
   try { return JSON.parse(localStorage.getItem(FIRST_SOUND_KEY) || '{}') || {}; }
   catch (e) { return {}; }
@@ -82,7 +82,7 @@ function markFirstSoundSeen(instrumentId) {
   localStorage.setItem(FIRST_SOUND_KEY, JSON.stringify(seen));
 }
 
-const TUTORIAL_KEY = 'preludeRecorderTutorials';
+const TUTORIAL_KEY = 'preludioRecorderTutorials';
 
 function getTutorialSeen(instrumentId) {
   let seen = [];
@@ -116,7 +116,7 @@ const FIRST_SOUND_CONTENT = {
 };
 
 // ── ANALYTICS (local) ─────────────────────────────────────────────────────────
-const ANALYTICS_KEY = 'preludeRecorderAnalytics';
+const ANALYTICS_KEY = 'preludioRecorderAnalytics';
 
 function getStudentName() { return localStorage.getItem(NAME_KEY) || ''; }
 function setStudentName(name) { localStorage.setItem(NAME_KEY, name); }
@@ -174,7 +174,7 @@ const SPRINT_MODES = {
 };
 
 // ── MOTIVATION (streak, practice minutes, levels, badges) ──────────────────
-const MOTIVATION_KEY = 'preludeRecorderMotivation';
+const MOTIVATION_KEY = 'preludioRecorderMotivation';
 const MAX_SESSION_SECONDS = 30 * 60; // ignore implausible idle stretches
 
 function pad2(n) { return n < 10 ? '0' + n : '' + n; }
