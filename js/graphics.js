@@ -9,6 +9,8 @@ const Graphics = (() => {
   const STAFF_BOTTOM_Y = 140; // y of pos0 (E4, bottom line)
   const STAFF_LEFT_X = 30;
   const STAFF_RIGHT_X = 105;
+  const INK = 'var(--dg-ink)';   // staff lines, clef, strong outlines
+  const OPEN = 'var(--dg-open)'; // open hole / vent interior
 
   function yForPos(pos) { return STAFF_BOTTOM_Y - pos * HALF; }
 
@@ -67,6 +69,61 @@ const Graphics = (() => {
     } else {
       svg += `<line x1="${noteX - 7}" y1="${noteY}" x2="${noteX - 7}" y2="${noteY + 46}" stroke="${accentColor}" stroke-width="2"/>`;
     }
+
+    svg += `</svg>`;
+    return svg;
+  }
+
+  // ── MELODY STRIP (song step-through) ─────────────────────────────────
+  function melodySVG({ notes = [], highlightIndex = -1, clef = 'treble', accentColor = 'var(--accent-warm)', width = 320, perSystem = 6 }) {
+    if (!notes.length) return '';
+    const VB_W = 360;
+    const SYSTEM_H = 96;
+    const TOP_LINE_Y = 16;
+    const leftX = 58;
+    const lineStartX = 16;
+    const rightX = VB_W - 14;
+    const systems = [];
+    for (let i = 0; i < notes.length; i += perSystem) systems.push(notes.slice(i, i + perSystem));
+    const VB_H = systems.length * SYSTEM_H + 8;
+    const renderH = width * (VB_H / VB_W);
+
+    let svg = `<svg viewBox="0 0 ${VB_W} ${VB_H}" width="${width}" height="${renderH.toFixed(1)}" xmlns="http://www.w3.org/2000/svg">`;
+
+    systems.forEach((systemNotes, s) => {
+      const topLineY = TOP_LINE_Y + s * SYSTEM_H;
+      const y = pos => topLineY + (8 - pos) * HALF;
+
+      for (let p = 0; p <= 8; p += 2) {
+        svg += `<line x1="${lineStartX}" y1="${y(p)}" x2="${rightX}" y2="${y(p)}" stroke="${INK}" stroke-width="1.3"/>`;
+      }
+      if (clef === 'treble') {
+        svg += `<text x="${lineStartX - 12}" y="${y(0) + 8}" font-size="82" font-family="Georgia, 'Apple Symbols', serif" fill="${INK}">&#119070;</text>`;
+      } else {
+        svg += `<text x="${lineStartX - 8}" y="${y(2)}" font-size="54" font-family="Georgia, 'Apple Symbols', serif" fill="${INK}">&#119074;</text>`;
+      }
+
+      const spacing = (rightX - leftX) / systemNotes.length;
+      systemNotes.forEach((note, k) => {
+        const x = leftX + spacing * (k + 0.5);
+        const noteY = y(note.pos);
+        const lit = (s * perSystem + k) === highlightIndex;
+        const color = lit ? accentColor : INK;
+
+        if (lit) svg += `<circle cx="${x}" cy="${noteY}" r="13" fill="${accentColor}" opacity="0.18"/>`;
+        ledgerPositions(note.pos).forEach(p => {
+          svg += `<line x1="${x - 10}" y1="${y(p)}" x2="${x + 10}" y2="${y(p)}" stroke="${color}" stroke-width="1.3"/>`;
+        });
+        if (note.accidental) {
+          svg += `<text x="${x - 15}" y="${noteY + 5}" font-size="18" fill="${color}" font-family="Georgia, serif">${note.accidental}</text>`;
+        }
+        svg += `<ellipse cx="${x}" cy="${noteY}" rx="6.2" ry="4.6" fill="${color}" stroke="${OPEN}" stroke-width="1.2" transform="rotate(-18 ${x} ${noteY})"/>`;
+        const stemUp = note.pos <= 4;
+        const stemX = stemUp ? x + 6 : x - 6;
+        const stemEnd = stemUp ? noteY - 34 : noteY + 34;
+        svg += `<line x1="${stemX}" y1="${noteY}" x2="${stemX}" y2="${stemEnd}" stroke="${color}" stroke-width="1.6"/>`;
+      });
+    });
 
     svg += `</svg>`;
     return svg;
@@ -555,5 +612,5 @@ const Graphics = (() => {
     return s;
   }
 
-  return { staffSVG, songStaffSVG, fingeringSVG, recorderFingeringSVG, valveFingeringSVG, tromboneFingeringSVG, woodwindFingeringSVG, instrumentIconSVG, yForPos, ledgerPositions };
+  return { staffSVG, songStaffSVG, melodySVG, fingeringSVG, recorderFingeringSVG, valveFingeringSVG, tromboneFingeringSVG, woodwindFingeringSVG, instrumentIconSVG, yForPos, ledgerPositions };
 })();

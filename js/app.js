@@ -1121,7 +1121,7 @@ function renderLessonScreen() {
     APP.phase = 'quiz';
   }
   if (isSong && APP.phase === 'present') {
-    body = renderSongPlayPhase(inst, lesson);
+    body = renderSongPresentPhase(inst, lesson);
   } else if (APP.phase === 'present') body = renderPresentPhase(inst, lesson);
   else if (APP.phase === 'quiz') body = renderQuizPhase(inst, lesson);
   else if (APP.phase === 'play') body = renderPlayPhase(inst, lesson);
@@ -1180,45 +1180,64 @@ function renderPresentPhase(inst, lesson) {
     </div>`;
 }
 
-function renderSongPlayPhase(inst, lesson) {
-  const rawNotes = lesson.noteIds.map(id => findLessonById(APP.instrumentId, id));
-  const durations = lesson.durations || [];
-  const notes = rawNotes.map((n, i) => ({ ...n, dur: durations[i] || 'q' }));
-  const totalNotes = notes.length;
-  const playback = APP.songPlayback || { active: false, index: -1 };
-  const hasFinished = playback.finished;
+function renderSongPresentPhase(inst, lesson) {
+  const totalNotes = lesson.noteIds.length;
+  APP.songNoteIndex = Math.min(Math.max(APP.songNoteIndex, 0), totalNotes - 1);
+  const note = getResolvedSongNote(APP.instrumentId, lesson);
+  const currentNum = APP.songNoteIndex + 1;
+  const isFirst = APP.songNoteIndex === 0;
+  const isLast = APP.songNoteIndex >= totalNotes - 1;
+  const playback = APP.songPlayback || { active: false, finished: false };
 
-  const staffSvg = Graphics.songStaffSVG({ notes, clef: inst.clef, accentColor: inst.accentColor, keySig: lesson.keySig || 0, timeSig: lesson.timeSig || null });
+  const fingeringSvg = Graphics.fingeringSVG(inst.fingeringType, note.fingeringState, inst.accentColor, 84);
+  const staffSvg = Graphics.staffSVG({ pos: note.staffStep, accidental: note.accidental, clef: inst.clef, accentColor: inst.accentColor, width: 96 });
 
-  const playBtn = hasFinished
-    ? `<button class="btn btn-secondary" data-action="song-replay">↻ Replay</button>`
-    : `<button class="btn btn-primary" data-action="song-play" ${playback.active ? 'disabled' : ''}>▶ Play song</button>`;
+  const melodyNotes = [];
+  let highlightIndex = -1;
+  lesson.noteIds.forEach((id, i) => {
+    const n = findLessonById(APP.instrumentId, id);
+    if (!n || typeof n.staffStep !== 'number') return;
+    if (i === APP.songNoteIndex) highlightIndex = melodyNotes.length;
+    melodyNotes.push({ pos: n.staffStep, accidental: n.accidental });
+  });
+  const melodySvg = melodyNotes.length
+    ? Graphics.melodySVG({ notes: melodyNotes, highlightIndex, clef: inst.clef, accentColor: inst.accentColor, width: 320 })
+    : '';
 
-  const continueBtn = hasFinished
-    ? `<button class="btn btn-success btn-wide" data-action="goto-quiz">Continue to quiz</button>`
-    : `<button class="btn btn-secondary btn-wide" disabled>Play through first</button>`;
+  const playLabel = playback.finished ? '\u21BB Replay' : '\u25B6 Play whole melody';
+  const playAction = playback.finished ? 'song-replay' : 'song-play';
 
   return `
     <div class="lesson-body">
-      <div class="song-title">${escapeHtml(t(lesson.noteName))}</div>
-      <div class="song-note-count">${totalNotes} notes</div>
-      <div class="song-score-card">
-        <div class="song-score-wrap" id="song-score-container">
-          ${staffSvg}
+      <div class="lesson-instruction">${escapeHtml(t(lesson.noteName))}</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:16px">Note ${currentNum} of ${totalNotes}</div>
+      ${melodySvg ? `<div class="song-melody-wrap">
+        <div class="present-diagram-label">Sheet music</div>
+        <div class="song-melody-svg">${melodySvg}</div>
+      </div>` : ''}
+      <div class="present-layout">
+        <div class="present-diagram-wrap">
+          <div class="present-diagram-label">Fingering</div>
+          <div class="present-diagram-svg">${fingeringSvg}</div>
+        </div>
+        <div class="present-notation-wrap">
+          <div class="present-diagram-label">On the staff</div>
+          <div class="present-diagram-svg">${staffSvg}</div>
         </div>
       </div>
-      <div class="song-playback-controls">
-        ${playBtn}
-        <div class="song-speed-control">
-          <button class="btn-speed" data-action="song-speed-down">−</button>
-          <span class="song-speed-label">${Math.round(APP.songSpeed * 100)}% (${Math.round(100 * APP.songSpeed)} BPM)</span>
-          <button class="btn-speed" data-action="song-speed-up">+</button>
-        </div>
-
+      <div class="note-name-block">
+        <span class="note-name-big">${escapeHtml(t(note.noteName))}</span>
       </div>
+      <div class="gap-md"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-secondary" data-action="song-prev" ${isFirst ? 'disabled' : ''}>\u2039 Prev</button>
+        <button class="btn-hear" data-action="hear-note"><span class="hear-icon">\u{1F50A}</span> Play note</button>
+        <button class="btn btn-secondary" data-action="song-next" ${isLast ? 'disabled' : ''}>Next \u203A</button>
+      </div>
+      <button class="btn btn-secondary" data-action="${playAction}" style="margin-top:8px;width:100%" ${playback.active ? 'disabled' : ''}>${playLabel}</button>
     </div>
     <div class="action-bar">
-      ${continueBtn}
+      <button class="btn btn-primary btn-wide" data-action="goto-quiz">Continue to quiz</button>
     </div>`;
 }
 
