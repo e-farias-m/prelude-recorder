@@ -75,18 +75,41 @@ const Graphics = (() => {
   }
 
   // ── MELODY STRIP (song step-through) ─────────────────────────────────
-  function melodySVG({ notes = [], highlightIndex = -1, clef = 'treble', accentColor = 'var(--accent-warm)', width = 320, perSystem = 6 }) {
+  // `notes` is a list of { pos, accidental, duration } where duration is in
+  // beats (1 = quarter, 2 = half, 4 = whole; anything past a whole note is
+  // drawn as a whole). The note value is engraved — halves and wholes get an
+  // open (hollow) notehead, wholes drop the stem — so the written rhythm
+  // matches what the tune actually plays.
+  //
+  // The tune is laid out in common time (4/4): bar lines fall every four beats
+  // and a "4/4" signature is drawn after the clef. When the melody's total is
+  // not a whole number of bars, the opening beats are treated as an anacrusis
+  // (pickup), so bar lines straddle no note and the final bar is complete.
+  function melodySVG({ notes = [], highlightIndex = -1, clef = 'treble', accentColor = 'var(--accent-warm)', width = 320, perSystem = 6, beatsPerBar = 4 }) {
     if (!notes.length) return '';
     const VB_W = 360;
     const SYSTEM_H = 96;
     const TOP_LINE_Y = 16;
-    const leftX = 58;
+    const leftX = 96;          // first note sits past the clef + time signature
     const lineStartX = 16;
     const rightX = VB_W - 14;
     const systems = [];
     for (let i = 0; i < notes.length; i += perSystem) systems.push(notes.slice(i, i + perSystem));
     const VB_H = systems.length * SYSTEM_H + 8;
     const renderH = width * (VB_H / VB_W);
+
+    // Cumulative beats consumed through each note, plus the pickup length, so
+    // bar lines can be placed on the beats that are true bar boundaries.
+    const durs = notes.map(n => (typeof n.duration === 'number' && n.duration > 0 ? n.duration : 1));
+    const cum = [];
+    durs.reduce((acc, d) => { const v = acc + d; cum.push(v); return v; }, 0);
+    const totalBeats = cum[cum.length - 1];
+    const pickup = totalBeats % beatsPerBar;
+    const isBarBoundary = g => {
+      if (g >= notes.length - 1) return false;      // never after the last note
+      const c = cum[g];
+      return c > 0 && (c - pickup) % beatsPerBar === 0;
+    };
 
     let svg = `<svg viewBox="0 0 ${VB_W} ${VB_H}" width="${width}" height="${renderH.toFixed(1)}" xmlns="http://www.w3.org/2000/svg">`;
 
@@ -98,17 +121,33 @@ const Graphics = (() => {
         svg += `<line x1="${lineStartX}" y1="${y(p)}" x2="${rightX}" y2="${y(p)}" stroke="${INK}" stroke-width="1.3"/>`;
       }
       if (clef === 'treble') {
-        svg += `<text x="${lineStartX - 12}" y="${y(0) + 8}" font-size="82" font-family="Georgia, 'Apple Symbols', serif" fill="${INK}">&#119070;</text>`;
+        svg += `<text x="${lineStartX - 6}" y="${y(0) + 4}" font-size="60" font-family="Georgia, 'Apple Symbols', serif" fill="${INK}">&#119070;</text>`;
       } else {
-        svg += `<text x="${lineStartX - 8}" y="${y(2)}" font-size="54" font-family="Georgia, 'Apple Symbols', serif" fill="${INK}">&#119074;</text>`;
+        svg += `<text x="${lineStartX - 2}" y="${y(2)}" font-size="44" font-family="Georgia, 'Apple Symbols', serif" fill="${INK}">&#119074;</text>`;
+      }
+      // Time signature: "4" over "4" centred on the middle of the staff.
+      if (s === 0) {
+        const sigX = lineStartX + 70;
+        svg += `<text x="${sigX}" y="${y(4) - 1}" font-size="26" font-weight="700" text-anchor="middle" font-family="Georgia, serif" fill="${INK}">${beatsPerBar}</text>`;
+        svg += `<text x="${sigX}" y="${y(2) + 15}" font-size="26" font-weight="700" text-anchor="middle" font-family="Georgia, serif" fill="${INK}">4</text>`;
       }
 
       const spacing = (rightX - leftX) / systemNotes.length;
       systemNotes.forEach((note, k) => {
+        const g = s * perSystem + k;
         const x = leftX + spacing * (k + 0.5);
         const noteY = y(note.pos);
-        const lit = (s * perSystem + k) === highlightIndex;
+        const lit = g === highlightIndex;
         const color = lit ? accentColor : INK;
+        const duration = durs[g];
+        const open = duration >= 2;                       // half and longer: hollow
+        const stemmed = duration < 4;                     // whole notes lose the stem
+
+        // Bar line just before this note when the previous note ended a bar.
+        if (k > 0 && isBarBoundary(g - 1)) {
+          const bx = x - spacing / 2;
+          svg += `<line x1="${bx}" y1="${y(8)}" x2="${bx}" y2="${y(0)}" stroke="${INK}" stroke-width="1.3"/>`;
+        }
 
         if (lit) svg += `<circle cx="${x}" cy="${noteY}" r="13" fill="${accentColor}" opacity="0.18"/>`;
         ledgerPositions(note.pos).forEach(p => {
@@ -117,12 +156,24 @@ const Graphics = (() => {
         if (note.accidental) {
           svg += `<text x="${x - 15}" y="${noteY + 5}" font-size="18" fill="${color}" font-family="Georgia, serif">${note.accidental}</text>`;
         }
-        svg += `<ellipse cx="${x}" cy="${noteY}" rx="6.2" ry="4.6" fill="${color}" stroke="${OPEN}" stroke-width="1.2" transform="rotate(-18 ${x} ${noteY})"/>`;
-        const stemUp = note.pos <= 4;
-        const stemX = stemUp ? x + 6 : x - 6;
-        const stemEnd = stemUp ? noteY - 34 : noteY + 34;
-        svg += `<line x1="${stemX}" y1="${noteY}" x2="${stemX}" y2="${stemEnd}" stroke="${color}" stroke-width="1.6"/>`;
+        // Hollow noteheads read clearly against the staff, so they skip the dark
+        // separating ring a filled head needs; both keep the same rotation.
+        const headFill = open ? 'none' : color;
+        const headStroke = open ? color : OPEN;
+        const headStrokeW = open ? 1.8 : 1.2;
+        svg += `<ellipse cx="${x}" cy="${noteY}" rx="6.2" ry="4.6" fill="${headFill}" stroke="${headStroke}" stroke-width="${headStrokeW}" transform="rotate(-18 ${x} ${noteY})"/>`;
+        if (stemmed) {
+          const stemUp = note.pos <= 4;
+          const stemX = stemUp ? x + 6 : x - 6;
+          const stemEnd = stemUp ? noteY - 34 : noteY + 34;
+          svg += `<line x1="${stemX}" y1="${noteY}" x2="${stemX}" y2="${stemEnd}" stroke="${color}" stroke-width="1.6"/>`;
+        }
       });
+
+      // Closing bar line at the end of the tune.
+      if (s === systems.length - 1) {
+        svg += `<line x1="${rightX}" y1="${y(8)}" x2="${rightX}" y2="${y(0)}" stroke="${INK}" stroke-width="1.3"/>`;
+      }
     });
 
     svg += `</svg>`;

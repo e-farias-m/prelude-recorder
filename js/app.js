@@ -1770,11 +1770,15 @@ function renderSongPresentPhase(inst, lesson) {
 
   const melodyNotes = [];
   let highlightIndex = -1;
+  const durMap = { w: 4, h: 2, q: 1, e: 0.5, s: 0.25 };
+  const songDurations = Array.isArray(lesson.durations) ? lesson.durations : [];
   lesson.noteIds.forEach((id, i) => {
     const n = findLessonById(APP.instrumentId, id);
     if (!n || typeof n.staffStep !== 'number') return;
     if (i === APP.songNoteIndex) highlightIndex = melodyNotes.length;
-    melodyNotes.push({ pos: n.staffStep, accidental: n.accidental });
+    const d = songDurations[i];
+    const duration = typeof d === 'number' ? d : (durMap[d] || 1);
+    melodyNotes.push({ pos: n.staffStep, accidental: n.accidental, duration });
   });
   const melodySvg = melodyNotes.length
     ? Graphics.melodySVG({ notes: melodyNotes, highlightIndex, clef: inst.clef, accentColor: inst.accentColor, width: 320 })
