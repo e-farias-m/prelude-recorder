@@ -48,7 +48,7 @@ const APP = {
   reviewTotal: 0,
   // Song session state
   songNoteIndex: 0,
-  songSpeed: 1.0,
+  songSpeed: getSavedSpeed(),
   quizQueue: [],
   quizIndex: 0,
   lookupId: null,
@@ -71,6 +71,33 @@ const VERSION = '1.0.2';
 const STORAGE_KEY = 'preludioRecorderProgress';
 const NAME_KEY = 'preludioRecorderName';
 const INSTRUMENT_KEY = 'preludioRecorderInstrument';
+
+// Practice speed: a single multiplier applied to every count-in and song, so
+// the count-in always runs at the same tempo the song will. 100% = the song's
+// own written tempo. Range 50%–150%, 10% steps, persisted across sessions.
+const SONG_SPEED_KEY = 'preludioRecorderSongSpeed';
+const SPEED_MIN = 0.5;
+const SPEED_MAX = 1.5;
+const SPEED_STEP = 0.1;
+function clampSpeed(v) {
+  const n = Math.round((Number(v) || 1) / SPEED_STEP) * SPEED_STEP;
+  return Math.max(SPEED_MIN, Math.min(SPEED_MAX, Number(n.toFixed(2))));
+}
+function getSavedSpeed() {
+  try { return clampSpeed(localStorage.getItem(SONG_SPEED_KEY)); }
+  catch (e) { return 1; }
+}
+function setSavedSpeed(v) {
+  // localStorage may be unavailable (private mode); the in-memory APP value
+  // still drives playback, so a failure here is harmless.
+  try { localStorage.setItem(SONG_SPEED_KEY, String(v)); } catch (e) {}
+}
+// Milliseconds per beat at the current practice speed, given the song's own
+// written tempo (baseBpm). The single source of truth for count-in and song.
+function msPerBeatAt(baseBpm, speed) {
+  const bpm = (Number(baseBpm) || 100) * (speed || 1);
+  return 60000 / bpm;
+}
 
 // Last instrument the student opened — lets the home screen focus on one
 // instrument instead of the full set until they ask to switch.
@@ -1707,6 +1734,28 @@ function renderPresentPhase(inst, lesson) {
     </div>`;
 }
 
+// The practice-speed readout shared by the +/- buttons. Shows the percentage
+// and the resulting song tempo so the student can see both.
+function songSpeedLabelText(speed) {
+  return Math.round(speed * 100) + '% (' + Math.round(100 * speed) + ' BPM)';
+}
+function renderSongSpeedControl(disabled) {
+  return `
+    <div class="song-speed-control">
+      <button class="btn-speed" data-action="song-speed-down" aria-label="Slower" ${disabled || APP.songSpeed <= SPEED_MIN ? 'disabled' : ''}>\u2212</button>
+      <span class="song-speed-label">${songSpeedLabelText(APP.songSpeed)}</span>
+      <button class="btn-speed" data-action="song-speed-up" aria-label="Faster" ${disabled || APP.songSpeed >= SPEED_MAX ? 'disabled' : ''}>+</button>
+    </div>`;
+}
+// Update only the label text in place (used while accompaniment is playing, so
+// we don't tear down the live audio source with a full re-render).
+function updateSongSpeedLabels() {
+  const text = songSpeedLabelText(APP.songSpeed);
+  document.querySelectorAll('.song-speed-label').forEach(lbl => { lbl.textContent = text; });
+  document.querySelectorAll('[data-action="song-speed-down"]').forEach(b => { b.disabled = APP.songSpeed <= SPEED_MIN; });
+  document.querySelectorAll('[data-action="song-speed-up"]').forEach(b => { b.disabled = APP.songSpeed >= SPEED_MAX; });
+}
+
 function renderSongPresentPhase(inst, lesson) {
   const totalNotes = lesson.noteIds.length;
   APP.songNoteIndex = Math.min(Math.max(APP.songNoteIndex, 0), totalNotes - 1);
@@ -1761,7 +1810,10 @@ function renderSongPresentPhase(inst, lesson) {
         <button class="btn-hear" data-action="hear-note"><span class="hear-icon">\u{1F50A}</span> Play note</button>
         <button class="btn btn-secondary" data-action="song-next" ${isLast ? 'disabled' : ''}>Next \u203A</button>
       </div>
-      <button class="btn btn-secondary" data-action="${playAction}" style="margin-top:8px;width:100%" ${playback.active ? 'disabled' : ''}>${playLabel}</button>
+      <div class="song-playback-controls">
+        <button class="btn btn-secondary" data-action="${playAction}" ${playback.active ? 'disabled' : ''}>${playLabel}</button>
+        ${renderSongSpeedControl(playback.active)}
+      </div>
     </div>
     <div class="action-bar">
       <button class="btn btn-primary btn-wide" data-action="goto-quiz">Continue to quiz</button>
@@ -2333,7 +2385,7 @@ function runPlaySequence(inst, lesson, listenOnly) {
   if (!btn || btn.disabled) return;
   btn.disabled = true;
   btn.textContent = '...';
-  const beatMs = 750; // 80 BPM count-in
+  const beatMs = msPerBeatAt(80, APP.songSpeed); // 80 BPM base, scaled by practice speed
   const cells = document.querySelectorAll('.beat-cell');
 
   function clearActive() { cells.forEach(c => c.classList.remove('active')); }
@@ -2404,15 +2456,18 @@ function runSongPlayback(inst, lesson) {
   const durations = lesson.durations || [];
   const notes = rawNotes.map((n, i) => ({ ...n, dur: durations[i] || 'q' }));
   const filled = notes.map(n => n.dur !== 'h' && n.dur !== 'w');
-  var spbMs = 600 / APP.songSpeed; // ms per beat at start — captured here, not const
 
-  APP.songPlayback = { active: true, index: -1, timer: null, finished: false };
+  var accompData = lesson.accompaniment || null;
+  // The song's own written tempo — the base the practice-speed multiplier scales.
+  var baseBpm = accompData && accompData.bpm ? accompData.bpm : (lesson.bpm || 100);
+  var spbMs = msPerBeatAt(baseBpm, APP.songSpeed); // ms per beat; count-in and notes share it
+
+  APP.songPlayback = { active: true, index: -1, timer: null, finished: false, baseBpm: baseBpm };
   if (APP.songPlayback.timer) clearTimeout(APP.songPlayback.timer);
 
   const container = document.getElementById('song-score-container');
   const accentColor = inst.accentColor;
 
-  var accompData = lesson.accompaniment || null;
   var hasAccomp = !!accompData;
 
   // Stop any previous accompaniment
@@ -2422,9 +2477,10 @@ function runSongPlayback(inst, lesson) {
   }
 
   function kickoff(accompBuffer) {
-    var recordedBPM = accompData ? accompData.bpm : 100;
-    var currentBPM = 100 * APP.songSpeed; // 100% = 100 BPM
-    var rate = currentBPM / recordedBPM;
+    var recordedBPM = accompData ? accompData.bpm : 100; // tempo of the audio file
+    var currentBPM = baseBpm * APP.songSpeed;            // song tempo at current speed
+    var rate = currentBPM / recordedBPM;                 // playbackRate to match both
+    APP.songPlayback.recordedBPM = recordedBPM;
     var c = AudioEngine.getContext();
 
     // Pre-compute cumulative beat offsets so highlighting can use the
@@ -2486,16 +2542,16 @@ function runSongPlayback(inst, lesson) {
       // Don't play any synth sounds — the MP3 has everything
       const note = notes[i];
 
-      // Schedule next note — read current speed each time so it tracks slider changes
+      // Schedule next note against the count-in's captured tempo, so the
+      // highlight grid stays locked to the accompaniment for the whole take.
       if (i + 1 < notes.length) {
-        var curSpb = 600 / APP.songSpeed;
-        var nextTime = audioStart + cumBeats[i + 1] * curSpb / 1000;
+        var nextTime = audioStart + cumBeats[i + 1] * spbMs / 1000;
         var delay = (nextTime - c.currentTime) * 1000;
         APP.songPlayback.timer = setTimeout(function() { step(i + 1); }, Math.max(0, delay));
       } else {
         // Last note — let it ring for its full duration before ending
         var lastBeat = beatDurs[notes.length - 1];
-        var lastMs = lastBeat * (600 / APP.songSpeed);
+        var lastMs = lastBeat * spbMs;
         APP.songPlayback.timer = setTimeout(function() {
           APP.songPlayback.active = false;
           APP.songPlayback.finished = true;
@@ -2814,27 +2870,20 @@ function handleAction(action, el) {
       break;
     }
 
-    case 'song-speed-down': {
-      APP.songSpeed = Math.max(0.4, APP.songSpeed - 0.15);
-      if (APP.accompSource) {
-        var ctx = AudioEngine.getContext();
-        APP.accompSource.playbackRate.setValueAtTime(APP.songSpeed, ctx.currentTime);
-        APP.accompSource.detune.setValueAtTime(-1200 * Math.log2(APP.songSpeed), ctx.currentTime);
-        var lbl = document.querySelector('.song-speed-label');
-        if (lbl) lbl.textContent = Math.round(APP.songSpeed * 100) + '% (' + Math.round(100 * APP.songSpeed) + ' BPM)';
-      } else {
-        render();
-      }
-      break;
-    }
+    case 'song-speed-down':
     case 'song-speed-up': {
-      APP.songSpeed = Math.min(2.0, APP.songSpeed + 0.15);
-      if (APP.accompSource) {
-        var ctx = AudioEngine.getContext();
-        APP.accompSource.playbackRate.setValueAtTime(APP.songSpeed, ctx.currentTime);
-        APP.accompSource.detune.setValueAtTime(-1200 * Math.log2(APP.songSpeed), ctx.currentTime);
-        var lbl = document.querySelector('.song-speed-label');
-        if (lbl) lbl.textContent = Math.round(APP.songSpeed * 100) + '% (' + Math.round(100 * APP.songSpeed) + ' BPM)';
+      const delta = action === 'song-speed-up' ? SPEED_STEP : -SPEED_STEP;
+      APP.songSpeed = clampSpeed(APP.songSpeed + delta);
+      setSavedSpeed(APP.songSpeed);
+      // A live accompaniment retimes in place, keeping its pitch; otherwise the
+      // readout is refreshed by a re-render.
+      if (APP.accompSource && APP.songPlayback) {
+        const ctx = AudioEngine.getContext();
+        const recordedBPM = APP.songPlayback.recordedBPM || 100;
+        const rate = (APP.songPlayback.baseBpm * APP.songSpeed) / recordedBPM;
+        APP.accompSource.playbackRate.setValueAtTime(rate, ctx.currentTime);
+        APP.accompSource.detune.setValueAtTime(-1200 * Math.log2(rate), ctx.currentTime);
+        updateSongSpeedLabels();
       } else {
         render();
       }

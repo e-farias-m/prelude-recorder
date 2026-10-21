@@ -52,7 +52,8 @@ ${read('audio.js')}
 ${read('app.js')}
 return { renderSelectScreen, CURRICULUM, APP, INSTRUMENT_ORDER, getLang, setLang, t,
   listenEnabled, listenFeedback, canRecord, startRecording, stopRecording,
-  playRecording, cleanupRecording, renderPlayPhase, getLesson };
+  playRecording, cleanupRecording, renderPlayPhase, getLesson,
+  clampSpeed, msPerBeatAt, renderSongPresentPhase };
 `);
 const api = sandbox(document, localStorage, {}, { language: 'en-US' },
   MediaRecorder, URL, Blob, Audio);
@@ -142,6 +143,34 @@ check(Array.isArray(api.INSTRUMENT_ORDER) && api.INSTRUMENT_ORDER.length > 0, 'I
     check(!api2.APP.recordingUrl, 'cleanup releases the recording URL');
     finish();
   });
+}
+
+// ── Practice speed ─────────────────────────────────────────────────────────
+// One multiplier (50%–150%, 10% steps) drives every count-in and song, so the
+// count-in always runs at the tempo the song will play.
+{
+  check(api.clampSpeed(1) === 1, 'speed 100% is unchanged');
+  check(api.clampSpeed(0.1) === 0.5, 'speed is clamped up to the 50% floor');
+  check(api.clampSpeed(9) === 1.5, 'speed is clamped down to the 150% ceiling');
+  check(api.clampSpeed(0.74) === 0.7, 'speed snaps to the nearest 10% step');
+  check(api.clampSpeed('nonsense') === 1, 'an unparseable speed falls back to 100%');
+
+  // ms per beat scales inversely with speed, from the song's own tempo.
+  check(Math.round(api.msPerBeatAt(100, 1)) === 600, '100 BPM at 100% is 600 ms/beat');
+  check(Math.round(api.msPerBeatAt(100, 0.5)) === 1200, '100 BPM at 50% is 1200 ms/beat');
+  check(Math.round(api.msPerBeatAt(80, 1.5)) === 500, '80 BPM at 150% is 500 ms/beat');
+
+  // The song present phase surfaces the speed control.
+  const inst = api.CURRICULUM['soprano-recorder'];
+  const songLesson = inst.lessons.find(l => l.type === 'song');
+  api.APP.instrumentId = 'soprano-recorder';
+  api.APP.lessonIndex = inst.lessons.indexOf(songLesson);
+  api.APP.songNoteIndex = 0;
+  const songHtml = api.renderSongPresentPhase(inst, songLesson);
+  check(songHtml.includes('song-speed-control'), 'the song phase renders a speed control');
+  check(songHtml.includes('data-action="song-speed-up"'), 'the speed control has a faster button');
+  check(songHtml.includes('data-action="song-speed-down"'), 'the speed control has a slower button');
+  check(songHtml.includes('100% (100 BPM)'), 'the speed label shows percent and BPM');
 }
 
 function finish() {
