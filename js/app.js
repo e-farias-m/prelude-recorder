@@ -2333,7 +2333,7 @@ function runPlaySequence(inst, lesson, listenOnly) {
   if (!btn || btn.disabled) return;
   btn.disabled = true;
   btn.textContent = '...';
-  const beatMs = 420;
+  const beatMs = 750; // 80 BPM count-in
   const cells = document.querySelectorAll('.beat-cell');
 
   function clearActive() { cells.forEach(c => c.classList.remove('active')); }
